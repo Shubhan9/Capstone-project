@@ -2,59 +2,99 @@ import { synchronize } from '@nozbe/watermelondb/sync';
 import NetInfo from '@react-native-community/netinfo';
 import database from '../database';
 
-const API_BASE = 'https://your-backend.com/api'; // replace with your server URL
-let isSyncing = false;
+// ── Replace this with your deployed URL ──────────────────────────────────────
+// Railway:  https://bizops-backend-production.up.railway.app
+// Render:   https://bizops-backend.onrender.com
+export const API_BASE = 'https://your-backend-url.com/api';
 
-export async function syncWithServer(authToken) {
-    if (isSyncing) return;
-    isSyncing = true;
+// ─────────────────────────────────────────────────────────────────────────────
+// Token storage — kept in memory for now, swap for SecureStore in production
+// ─────────────────────────────────────────────────────────────────────────────
+let _token = null;
+export function setAuthToken(token) { _token = token; }
+export function getAuthToken() { return _token; }
+
+function authHeaders() {
+    return {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${_token}`,
+    };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Core sync — called on reconnect and on app foreground
+// ─────────────────────────────────────────────────────────────────────────────
+let _syncing = false;
+
+export async function syncWithServer() {
+    if (!_token) { console.log('[sync] No token — skipping'); return; }
+    if (_syncing) { console.log('[sync] Already in progress'); return; }
+    _syncing = true;
 
     try {
         await synchronize({
             database,
 
-            // Pull: get changes from server since last sync
             pullChanges: async ({ lastPulledAt }) => {
-                const response = await fetch(
-                    `${API_BASE}/sync/pull?last_pulled_at=${lastPulledAt ?? 0}`,
-                    { headers: { Authorization: `Bearer ${authToken}` } }
-                );
-                if (!response.ok) throw new Error('Pull failed');
-                const { changes, timestamp } = await response.json();
+                const url = `${API_BASE}/sync/pull?last_pulled_at=${lastPulledAt ?? 0}`;
+                const res = await fetch(url, { headers: authHeaders() });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.error || `Pull failed ${res.status}`);
+                }
+                const { changes, timestamp } = await res.json();
                 return { changes, timestamp };
             },
 
-            // Push: send local pending changes to server
             pushChanges: async ({ changes, lastPulledAt }) => {
-                const response = await fetch(`${API_BASE}/sync/push`, {
+                const res = await fetch(`${API_BASE}/sync/push`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        Authorization: `Bearer ${authToken}`,
-                    },
+                    headers: authHeaders(),
                     body: JSON.stringify({ changes, lastPulledAt }),
                 });
-                if (!response.ok) throw new Error('Push failed');
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.error || `Push failed ${res.status}`);
+                }
             },
 
-            // On conflict: server wins for most tables
-            // Stock quantities are safe because we use transactions, not raw stock fields
             migrationsEnabledAtVersion: 1,
+            sendCreatedAsUpdated: false,   // let server distinguish new vs updated
         });
 
-        console.log('Sync complete');
+        console.log('[sync] ✓ Complete at', new Date().toISOString());
     } catch (err) {
-        console.warn('Sync failed, will retry on next connection:', err.message);
+        // Non-fatal — data stays locally, retried on next reconnect
+        console.warn('[sync] Failed (will retry on reconnect):', err.message);
     } finally {
-        isSyncing = false;
+        _syncing = false;
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
 // Auto-sync whenever network comes back
-export function startAutoSync(authToken) {
-    return NetInfo.addEventListener(state => {
+// Call startAutoSync(token) after login, stopAutoSync() on logout
+// ─────────────────────────────────────────────────────────────────────────────
+let _unsubscribe = null;
+
+export function startAutoSync(token) {
+    setAuthToken(token);
+    if (_unsubscribe) _unsubscribe();   // clear any existing listener
+
+    // Sync immediately on start
+    syncWithServer();
+
+    // Then re-sync every time the phone reconnects
+    _unsubscribe = NetInfo.addEventListener(state => {
         if (state.isConnected && state.isInternetReachable) {
-            syncWithServer(authToken);
+            syncWithServer();
         }
     });
+
+    return _unsubscribe;
+}
+
+export function stopAutoSync() {
+    if (_unsubscribe) { _unsubscribe(); _unsubscribe = null; }
+    setAuthToken(null);
 }

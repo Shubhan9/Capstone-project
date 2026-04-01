@@ -54,7 +54,7 @@ export default function HomeScreen({ navigation }) {
                 <View style={s.header}>
                     <View>
                         <Text style={s.greeting}>Good {getGreeting()}</Text>
-                        <Text style={s.shopName}>BizOps Dashboard</Text>
+                        <Text style={s.shopName}>SmartOps Dashboard</Text>
                     </View>
                     <View style={s.syncDot} />
                 </View>
