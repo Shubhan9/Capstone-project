@@ -48,7 +48,7 @@ export default function LoginScreen({ onLogin }) {
         >
             <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
                 <View style={s.logoArea}>
-                    <Text style={s.logo}>BizOps</Text>
+                    <Text style={s.logo}>SmartOps</Text>
                     <Text style={s.tagline}>Smart inventory for your shop</Text>
                 </View>
 
