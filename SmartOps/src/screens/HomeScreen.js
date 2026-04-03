@@ -18,9 +18,17 @@ export default function HomeScreen({ navigation, onLogout, name }) {
             getNearExpiryBatches(7),
             getTodaySales(),
         ]);
+
+        const actionableExpiry = await Promise.all(
+            expiry.map(async batch => {
+                const remainingQty = await batch.currentQuantity();
+                return remainingQty > 0 ? batch : null;
+            })
+        );
+
         setStats({
             lowStock: lowStock.length,
-            expiry: expiry.length,
+            expiry: actionableExpiry.filter(Boolean).length,
             sales: todaySales.count,
             revenue: todaySales.total,
         });

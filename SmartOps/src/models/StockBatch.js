@@ -1,5 +1,5 @@
 import { Model } from '@nozbe/watermelondb';
-import { field, relation } from '@nozbe/watermelondb/decorators';
+import { field, relation, children } from '@nozbe/watermelondb/decorators';
 
 export default class StockBatch extends Model {
     static table = 'stock_batches';
@@ -20,6 +20,15 @@ export default class StockBatch extends Model {
     @field('updated_at') updatedAt;
 
     @relation('products', 'product_id') product;
+    @children('stock_transactions') stockTransactions;
+
+    async currentQuantity() {
+        const txns = await this.stockTransactions.fetch();
+        return txns.reduce((acc, txn) => {
+            if (txn.type === 'stock_in' || txn.type === 'return') return acc + txn.quantity;
+            return acc - txn.quantity;
+        }, 0);
+    }
 
     // expiry_date is raw unix ms — math works correctly now
     get daysUntilExpiry() {

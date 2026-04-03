@@ -183,12 +183,21 @@ export async function getLowStockProducts() {
 }
 
 export async function getNearExpiryBatches(days = 30) {
+    const bId = getBusinessId();
     const now = Date.now();
     const cutoff = now + days * 86400000;
+
+    const products = await database.get('products')
+        .query(Q.where('business_id', bId))
+        .fetch();
+
+    const productIds = products.map(product => product.id);
+    if (productIds.length === 0) return [];
+
     return database.get('stock_batches')
         .query(
-            Q.where('expiry_date', Q.lte(cutoff)),
-            Q.where('expiry_date', Q.gte(now))
+            Q.where('product_id', Q.oneOf(productIds)),
+            Q.where('expiry_date', Q.lte(cutoff))
         )
         .fetch();
 }

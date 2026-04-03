@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { getLowStockProducts, getNearExpiryBatches } from '../database/actions';
-import { Card, SectionHeader, Badge, EmptyState } from '../../components/UI';
+import { Card, Badge, EmptyState } from '../../components/UI';
 import { colors, spacing, radius, font } from '../theme';
 
 export default function AlertsScreen({ navigation }) {
@@ -21,12 +21,15 @@ export default function AlertsScreen({ navigation }) {
         ]);
 
         const ne = await Promise.all(nearExpiryBatches.map(async batch => {
-            const product = await batch.product.fetch();
-            return { batch, product };
+            const [product, remainingQty] = await Promise.all([
+                batch.product.fetch(),
+                batch.currentQuantity(),
+            ]);
+            return { batch, product, remainingQty };
         }));
 
         setLowStock(ls);
-        setNearExpiry(ne);
+        setNearExpiry(ne.filter(({ remainingQty }) => remainingQty > 0));
     }
 
     useFocusEffect(useCallback(() => { load(); }, []));
@@ -53,23 +56,21 @@ export default function AlertsScreen({ navigation }) {
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.teal} />}
                 showsVerticalScrollIndicator={false}
             >
-                {/* Header */}
                 <View style={s.header}>
                     <TouchableOpacity onPress={() => navigation.goBack()}>
-                        <Text style={s.back}>‹ Back</Text>
+                        <Text style={s.back}>Back</Text>
                     </TouchableOpacity>
                     <Text style={s.title}>Alerts</Text>
                     <View style={{ width: 40 }} />
                 </View>
 
-                {/* Summary pills */}
                 <View style={s.summaryRow}>
                     <View style={[s.summaryPill, { borderColor: colors.amber + '50', backgroundColor: colors.amber + '10' }]}>
                         <Text style={[s.summaryNum, { color: colors.amber }]}>{lowStock.length}</Text>
                         <Text style={[s.summaryLabel, { color: colors.amber }]}>low stock</Text>
                     </View>
                     <View style={[s.summaryPill, { borderColor: colors.red + '50', backgroundColor: colors.red + '10' }]}>
-                        <Text style={[s.summaryNum, { color: colors.red }]}>{nearExpiry.filter(({batch}) => batch.daysUntilExpiry < 7).length}</Text>
+                        <Text style={[s.summaryNum, { color: colors.red }]}>{nearExpiry.filter(({ batch }) => batch.daysUntilExpiry < 7).length}</Text>
                         <Text style={[s.summaryLabel, { color: colors.red }]}>expire soon</Text>
                     </View>
                     <View style={[s.summaryPill, { borderColor: colors.teal + '50', backgroundColor: colors.teal + '10' }]}>
@@ -78,14 +79,13 @@ export default function AlertsScreen({ navigation }) {
                     </View>
                 </View>
 
-                {/* Tab switcher */}
                 <View style={s.tabs}>
                     <TouchableOpacity
                         style={[s.tab, tab === 'expiry' && s.tabActive]}
                         onPress={() => setTab('expiry')}
                     >
                         <Text style={[s.tabText, tab === 'expiry' && s.tabTextActive]}>
-                            Near expiry  {nearExpiry.length > 0 && `(${nearExpiry.length})`}
+                            Near expiry {nearExpiry.length > 0 && `(${nearExpiry.length})`}
                         </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
@@ -93,18 +93,17 @@ export default function AlertsScreen({ navigation }) {
                         onPress={() => setTab('stock')}
                     >
                         <Text style={[s.tabText, tab === 'stock' && s.tabTextActive]}>
-                            Low stock  {lowStock.length > 0 && `(${lowStock.length})`}
+                            Low stock {lowStock.length > 0 && `(${lowStock.length})`}
                         </Text>
                     </TouchableOpacity>
                 </View>
 
-                {/* Near expiry list */}
                 {tab === 'expiry' && (
                     nearExpiry.length === 0
-                        ? <EmptyState icon="✓" title="No near-expiry items" subtitle="All batches are within safe date range" />
+                        ? <EmptyState icon="OK" title="No near-expiry items" subtitle="All tracked batches are within safe date range" />
                         : nearExpiry
                             .sort((a, b) => a.batch.expiryDate - b.batch.expiryDate)
-                            .map(({ batch, product }) => {
+                            .map(({ batch, product, remainingQty }) => {
                                 const days = batch.daysUntilExpiry;
                                 const color = expiryColor(days);
                                 return (
@@ -112,7 +111,7 @@ export default function AlertsScreen({ navigation }) {
                                         <View style={s.alertTop}>
                                             <View style={{ flex: 1 }}>
                                                 <Text style={s.alertName}>{product.name}</Text>
-                                                <Text style={s.alertSub}>Batch {batch.batchNo} · {batch.quantity} units</Text>
+                                                <Text style={s.alertSub}>Batch {batch.batchNo} - {remainingQty} units left</Text>
                                             </View>
                                             <Badge
                                                 label={days < 0 ? 'EXPIRED' : days === 0 ? 'TODAY' : `${days}d left`}
@@ -124,7 +123,7 @@ export default function AlertsScreen({ navigation }) {
                                             onPress={() => navigation.navigate('NewOrder')}
                                         >
                                             <Text style={[s.actionHintText, { color }]}>
-                                                {days < 0 ? '→ Mark as wastage' : '→ Create discounted order to clear'}
+                                                {days < 0 ? 'Go review batch / mark wastage' : 'Create discounted order to clear'}
                                             </Text>
                                         </TouchableOpacity>
                                     </Card>
@@ -132,10 +131,9 @@ export default function AlertsScreen({ navigation }) {
                             })
                 )}
 
-                {/* Low stock list */}
                 {tab === 'stock' && (
                     lowStock.length === 0
-                        ? <EmptyState icon="✓" title="All products are stocked" subtitle="Nothing below reorder level" />
+                        ? <EmptyState icon="OK" title="All products are stocked" subtitle="Nothing below reorder level" />
                         : lowStock.map(({ product, stock }) => {
                             const color = stockColor(stock, product.reorderLevel);
                             return (
@@ -143,7 +141,7 @@ export default function AlertsScreen({ navigation }) {
                                     <View style={s.alertTop}>
                                         <View style={{ flex: 1 }}>
                                             <Text style={s.alertName}>{product.name}</Text>
-                                            <Text style={s.alertSub}>{product.category} · reorder at {product.reorderLevel} {product.unit}</Text>
+                                            <Text style={s.alertSub}>{product.category} - reorder at {product.reorderLevel} {product.unit}</Text>
                                         </View>
                                         <Badge
                                             label={stock === 0 ? 'OUT' : `${stock} left`}
@@ -154,7 +152,7 @@ export default function AlertsScreen({ navigation }) {
                                         style={[s.actionHint, { borderColor: color + '40' }]}
                                         onPress={() => navigation.navigate('StockIn')}
                                     >
-                                        <Text style={[s.actionHintText, { color }]}>→ Record stock-in</Text>
+                                        <Text style={[s.actionHintText, { color }]}>Record stock-in</Text>
                                     </TouchableOpacity>
                                 </Card>
                             );
