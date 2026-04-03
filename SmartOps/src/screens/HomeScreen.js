@@ -135,8 +135,8 @@ export default function HomeScreen({ navigation, onLogout, name }) {
                     </TouchableOpacity>
 
                     <TouchableOpacity style={s.secondaryActionCard} onPress={() => navigation.navigate('ProductRegistration')} activeOpacity={0.75}>
-                        <View style={[s.secIconWrapper, { backgroundColor: colors.amber + '15' }]}>
-                            <Text style={s.secIcon}>+</Text>
+                        <View style={[s.secIconWrapper, { backgroundColor: colors.blue + '15' }]}>
+                            <Text style={s.secIcon}>➕</Text>
                         </View>
                         <Text style={s.secTitle}>Add Product</Text>
                     </TouchableOpacity>
