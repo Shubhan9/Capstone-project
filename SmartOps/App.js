@@ -25,9 +25,10 @@ export default function App() {
     initApp();
   }, []);
   const [authed, setAuthed] = useState(false);
-
+  const [name, setName] = useState('');
   function handleLogin(token, business) {
     setAuthed(true);
+    setName(business.name);
   }
 
   async function handleLogout() {
@@ -57,7 +58,7 @@ export default function App() {
           }}
         >
           <Stack.Screen name="Home">
-            {props => <HomeScreen {...props} onLogout={handleLogout} />}
+            {props => <HomeScreen {...props} onLogout={handleLogout} name={name} />}
           </Stack.Screen>
           <Stack.Screen name="NewOrder" component={NewOrderScreen} />
           <Stack.Screen name="StockIn" component={StockInScreen} />

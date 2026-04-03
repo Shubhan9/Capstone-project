@@ -8,7 +8,7 @@ import { getLowStockProducts, getNearExpiryBatches, getTodaySales } from '../dat
 import { SectionHeader } from '../../components/UI';
 import { colors, spacing, radius, font } from '../theme';
 
-export default function HomeScreen({ navigation, onLogout }) {
+export default function HomeScreen({ navigation, onLogout, name }) {
     const [stats, setStats] = useState({ sales: 0, revenue: 0, lowStock: 0, expiry: 0 });
     const [refreshing, setRefreshing] = useState(false);
 
@@ -47,10 +47,10 @@ export default function HomeScreen({ navigation, onLogout }) {
                 <View style={s.header}>
                     <View>
                         <Text style={s.greeting}>Good {getGreeting()} 👋</Text>
-                        <Text style={s.shopName}>SmartOps</Text>
+                        <Text style={s.shopName}>{name}</Text>
                     </View>
-                    <TouchableOpacity 
-                        style={s.profileAvatar} 
+                    <TouchableOpacity
+                        style={s.profileAvatar}
                         activeOpacity={0.7}
                         onPress={() => {
                             Alert.alert('Logout', 'Are you sure you want to log out?', [
@@ -59,7 +59,7 @@ export default function HomeScreen({ navigation, onLogout }) {
                             ]);
                         }}
                     >
-                        <Text style={s.profileInitial}>S</Text>
+                        <Text style={s.profileInitial}>{name.charAt(0).toUpperCase()}</Text>
                         <View style={s.onlineDot} />
                     </TouchableOpacity>
                 </View>
