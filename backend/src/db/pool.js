@@ -1,4 +1,9 @@
 const { Pool } = require('pg');
+const pg = require('pg');
+
+// Tell pg to return int8 (BIGINT) and numeric as JS numbers, not strings
+pg.types.setTypeParser(20, val => parseFloat(val));   // int8 / BIGINT
+pg.types.setTypeParser(1700, val => parseFloat(val)); // NUMERIC / DECIMAL
 
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,

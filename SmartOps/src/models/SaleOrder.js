@@ -1,5 +1,5 @@
 import { Model } from '@nozbe/watermelondb';
-import { field, date, children, relation } from '@nozbe/watermelondb/decorators';
+import { field, children, relation } from '@nozbe/watermelondb/decorators';
 
 export default class SaleOrder extends Model {
     static table = 'sale_orders';
@@ -15,6 +15,7 @@ export default class SaleOrder extends Model {
     @field('payment_mode') paymentMode;
     @field('sale_at') saleAt;
     @field('sync_status') syncStatus;
+    @field('updated_at') updatedAt;
 
     @children('sale_items') saleItems;
     @relation('customers', 'customer_id') customer;

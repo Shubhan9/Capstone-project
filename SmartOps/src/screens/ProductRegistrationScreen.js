@@ -5,8 +5,9 @@ import {
     KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
 import { registerProduct, getProductByBarcode } from '../database/actions';
+import { BarcodeAPI } from '../services/api';
 import BarcodeScanner from '../../components/BarcodeScanner';
-import { PrimaryButton, GhostButton, Card, Badge } from '../../components/UI';
+import { PrimaryButton, GhostButton, Card } from '../../components/UI';
 import { colors, spacing, radius, font } from '../theme';
 
 const CATEGORIES = ['Grocery', 'Beverage', 'Snack', 'Dairy', 'Medicine', 'Personal Care', 'Household', 'Other'];
@@ -44,8 +45,8 @@ export default function ProductRegistrationScreen({ navigation, route }) {
         const existing = await getProductByBarcode(barcode);
         if (existing) {
             Alert.alert('Already registered', `${existing.name} is already in your inventory.`, [
-                { text: 'View inventory', onPress: () => navigation.goBack() },
-                { text: 'Continue anyway', style: 'cancel' },
+                { text: 'View inventory', onPress: () => navigation.navigate('Inventory') },
+                { text: 'Cancel', style: 'cancel', onPress: () => navigation.navigate('Home') },
             ]);
             return;
         }
@@ -53,22 +54,22 @@ export default function ProductRegistrationScreen({ navigation, route }) {
         // Try backend catalog (your 21K OFF India entries)
         setLookingUp(true);
         try {
-            const res = await fetch(`https://your-backend.com/api/barcode/${barcode}`);
-            if (res.ok) {
-                const data = await res.json();
-                setForm(f => ({
-                    ...f,
-                    barcode: data.barcode || barcode,
-                    name: data.name || '',
-                    brand: data.brand || '',
-                    category: mapOFFCategory(data.category) || '',
-                }));
-                setSource('catalog');
-            } else {
-                setSource('manual');
-            }
+            const data = await BarcodeAPI.lookup(barcode);
+            const suggestion = data.suggestion || data.product || data; // handle raw or nested structures
+            setForm(f => ({
+                ...f,
+                barcode: suggestion.barcode || suggestion.code || barcode,
+                name: suggestion.name || suggestion.product_name || '',
+                brand: suggestion.brand || suggestion.brands || '',
+                category: mapOFFCategory(
+                    suggestion.category ||
+                    (suggestion.categories_tags_en && suggestion.categories_tags_en[0]) ||
+                    ''
+                ),
+            }));
+            setSource('catalog');
         } catch {
-            // Offline — manual entry
+            // Offline or not found (404) — manual entry
             setSource('manual');
         } finally {
             setLookingUp(false);
@@ -104,7 +105,6 @@ export default function ProductRegistrationScreen({ navigation, route }) {
                 reorderLevel: parseInt(form.reorderLevel) || 5,
                 scheduleH: form.scheduleH,
                 sellingPrice: parseFloat(form.sellingPrice) || 0,
-                businessId: 'default',
             });
 
             Alert.alert('Product added ✓', form.name, [

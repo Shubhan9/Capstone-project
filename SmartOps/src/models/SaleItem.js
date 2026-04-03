@@ -15,6 +15,7 @@ export default class SaleItem extends Model {
     @field('batch_id') batchId;
     @field('quantity') quantity;
     @field('unit_price') unitPrice;
+    @field('updated_at') updatedAt;
 
     @relation('sale_orders', 'order_id') order;
     @relation('products', 'product_id') product;

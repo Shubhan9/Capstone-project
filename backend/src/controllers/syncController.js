@@ -1,6 +1,16 @@
 const { withTransaction, query } = require('../db/pool');
 const { asyncHandler } = require('../middleware/errors');
 
+function pickSyncSample(rows, fields) {
+    const row = rows[0];
+    if (!row) return null;
+
+    return fields.reduce((sample, field) => {
+        sample[field] = row[field];
+        return sample;
+    }, { id: row.id });
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // PULL  GET /api/sync/pull?last_pulled_at=<unix_ms>
 //
@@ -16,55 +26,86 @@ const pull = asyncHandler(async (req, res) => {
 
         query(
             `SELECT id, business_id, name, category, barcode, brand, unit,
-              reorder_level, schedule_h, selling_price, sync_status, updated_at
-       FROM products
-       WHERE business_id = $1 AND updated_at > $2`,
+          reorder_level, schedule_h,
+          selling_price::FLOAT  AS selling_price,
+          sync_status,
+          updated_at::FLOAT     AS updated_at
+         FROM products
+         WHERE business_id = $1 AND updated_at > $2`,
             [businessId, since]
         ),
 
         query(
-            `SELECT sb.id, sb.product_id, sb.quantity, sb.batch_no,
-              sb.expiry_date, sb.cost_price, sb.sync_status, sb.updated_at
-       FROM stock_batches sb
-       JOIN products p ON p.id = sb.product_id
-       WHERE p.business_id = $1 AND sb.updated_at > $2`,
+            `SELECT sb.id, sb.product_id,
+          sb.quantity,
+          sb.batch_no,
+          sb.expiry_date::FLOAT  AS expiry_date,
+          sb.cost_price::FLOAT   AS cost_price,
+          sb.sync_status,
+          sb.created_at::FLOAT   AS created_at,
+          sb.updated_at::FLOAT   AS updated_at
+         FROM stock_batches sb
+         JOIN products p ON p.id = sb.product_id
+         WHERE p.business_id = $1 AND sb.updated_at > $2`,
             [businessId, since]
         ),
 
         query(
             `SELECT st.id, st.product_id, st.batch_id, st.type,
-              st.quantity, st.txn_at, st.sync_status, st.updated_at
-       FROM stock_transactions st
-       JOIN products p ON p.id = st.product_id
-       WHERE p.business_id = $1 AND st.updated_at > $2`,
+          st.quantity,
+          st.txn_at::FLOAT      AS txn_at,
+          st.sync_status,
+          st.updated_at::FLOAT  AS updated_at
+         FROM stock_transactions st
+         JOIN products p ON p.id = st.product_id
+         WHERE p.business_id = $1 AND st.updated_at > $2`,
             [businessId, since]
         ),
 
         query(
-            `SELECT id, business_id, customer_id, total_amount,
-              payment_mode, sale_at, sync_status, updated_at
-       FROM sale_orders
-       WHERE business_id = $1 AND updated_at > $2`,
+            `SELECT id, business_id, customer_id,
+          total_amount::FLOAT  AS total_amount,
+          payment_mode,
+          sale_at::FLOAT       AS sale_at,
+          sync_status,
+          updated_at::FLOAT    AS updated_at
+         FROM sale_orders
+         WHERE business_id = $1 AND updated_at > $2`,
             [businessId, since]
         ),
 
         query(
             `SELECT si.id, si.order_id, si.product_id, si.batch_id,
-              si.quantity, si.unit_price, si.updated_at
-       FROM sale_items si
-       JOIN sale_orders so ON so.id = si.order_id
-       WHERE so.business_id = $1 AND si.updated_at > $2`,
+          si.quantity,
+          si.unit_price::FLOAT  AS unit_price,
+          si.updated_at::FLOAT  AS updated_at
+         FROM sale_items si
+         JOIN sale_orders so ON so.id = si.order_id
+         WHERE so.business_id = $1 AND si.updated_at > $2`,
             [businessId, since]
         ),
 
         query(
             `SELECT id, business_id, name, phone, segment,
-              last_purchase_at, sync_status, updated_at
-       FROM customers
-       WHERE business_id = $1 AND updated_at > $2`,
+          last_purchase_at::FLOAT  AS last_purchase_at,
+          sync_status,
+          updated_at::FLOAT        AS updated_at
+         FROM customers
+         WHERE business_id = $1 AND updated_at > $2`,
             [businessId, since]
         ),
     ]);
+
+    console.log('[sync/pull] counts', {
+        businessId,
+        since,
+        products: products.rows.length,
+        sale_orders: orders.rows.length,
+        sale_items: items.rows.length,
+    });
+    console.log('[sync/pull] PRODUCT SAMPLE', pickSyncSample(products.rows, ['selling_price', 'updated_at']));
+    console.log('[sync/pull] ORDER SAMPLE', pickSyncSample(orders.rows, ['sale_at', 'total_amount', 'updated_at']));
+    console.log('[sync/pull] ITEM SAMPLE', pickSyncSample(items.rows, ['unit_price', 'quantity', 'updated_at']));
 
     res.json({
         timestamp: now,

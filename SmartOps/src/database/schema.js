@@ -1,7 +1,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export default appSchema({
-    version: 1,
+    version: 2,
     tables: [
 
         tableSchema({
@@ -31,6 +31,7 @@ export default appSchema({
                 { name: 'cost_price', type: 'number' },
                 { name: 'sync_status', type: 'string' },
                 { name: 'created_at', type: 'number' },
+                { name: 'updated_at', type: 'number' },
             ],
         }),
 
@@ -43,6 +44,7 @@ export default appSchema({
                 { name: 'quantity', type: 'number' },
                 { name: 'txn_at', type: 'number' },
                 { name: 'sync_status', type: 'string' },
+                { name: 'updated_at', type: 'number' },
             ],
         }),
 
@@ -55,6 +57,7 @@ export default appSchema({
                 { name: 'payment_mode', type: 'string' },
                 { name: 'sale_at', type: 'number' },
                 { name: 'sync_status', type: 'string' },
+                { name: 'updated_at', type: 'number' },
             ],
         }),
 
@@ -66,6 +69,7 @@ export default appSchema({
                 { name: 'batch_id', type: 'string' },
                 { name: 'quantity', type: 'number' },
                 { name: 'unit_price', type: 'number' },
+                { name: 'updated_at', type: 'number' },
             ],
         }),
 
@@ -78,6 +82,7 @@ export default appSchema({
                 { name: 'segment', type: 'string' },
                 { name: 'last_purchase_at', type: 'number' },
                 { name: 'sync_status', type: 'string' },
+                { name: 'updated_at', type: 'number' },
             ],
         }),
 

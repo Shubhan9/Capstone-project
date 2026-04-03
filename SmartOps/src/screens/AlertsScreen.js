@@ -15,10 +15,16 @@ export default function AlertsScreen({ navigation }) {
     const [tab, setTab] = useState('expiry');  // 'expiry' | 'stock'
 
     async function load() {
-        const [ls, ne] = await Promise.all([
+        const [ls, nearExpiryBatches] = await Promise.all([
             getLowStockProducts(),
             getNearExpiryBatches(30),
         ]);
+
+        const ne = await Promise.all(nearExpiryBatches.map(async batch => {
+            const product = await batch.product.fetch();
+            return { batch, product };
+        }));
+
         setLowStock(ls);
         setNearExpiry(ne);
     }
@@ -63,7 +69,7 @@ export default function AlertsScreen({ navigation }) {
                         <Text style={[s.summaryLabel, { color: colors.amber }]}>low stock</Text>
                     </View>
                     <View style={[s.summaryPill, { borderColor: colors.red + '50', backgroundColor: colors.red + '10' }]}>
-                        <Text style={[s.summaryNum, { color: colors.red }]}>{nearExpiry.filter(b => b.daysUntilExpiry < 7).length}</Text>
+                        <Text style={[s.summaryNum, { color: colors.red }]}>{nearExpiry.filter(({batch}) => batch.daysUntilExpiry < 7).length}</Text>
                         <Text style={[s.summaryLabel, { color: colors.red }]}>expire soon</Text>
                     </View>
                     <View style={[s.summaryPill, { borderColor: colors.teal + '50', backgroundColor: colors.teal + '10' }]}>
@@ -97,15 +103,15 @@ export default function AlertsScreen({ navigation }) {
                     nearExpiry.length === 0
                         ? <EmptyState icon="✓" title="No near-expiry items" subtitle="All batches are within safe date range" />
                         : nearExpiry
-                            .sort((a, b) => a.expiryDate - b.expiryDate)
-                            .map(batch => {
+                            .sort((a, b) => a.batch.expiryDate - b.batch.expiryDate)
+                            .map(({ batch, product }) => {
                                 const days = batch.daysUntilExpiry;
                                 const color = expiryColor(days);
                                 return (
                                     <Card key={batch.id} style={[s.alertCard, { borderLeftColor: color, borderLeftWidth: 3 }]}>
                                         <View style={s.alertTop}>
                                             <View style={{ flex: 1 }}>
-                                                <Text style={s.alertName}>{batch.productId}</Text>
+                                                <Text style={s.alertName}>{product.name}</Text>
                                                 <Text style={s.alertSub}>Batch {batch.batchNo} · {batch.quantity} units</Text>
                                             </View>
                                             <Badge

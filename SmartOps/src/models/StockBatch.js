@@ -1,5 +1,5 @@
 import { Model } from '@nozbe/watermelondb';
-import { field, date, relation } from '@nozbe/watermelondb/decorators';
+import { field, relation } from '@nozbe/watermelondb/decorators';
 
 export default class StockBatch extends Model {
     static table = 'stock_batches';
@@ -13,24 +13,19 @@ export default class StockBatch extends Model {
     @field('product_id') productId;
     @field('quantity') quantity;
     @field('batch_no') batchNo;
-    @field('expiry_date') expiryDate;   // unix timestamp
+    @field('expiry_date') expiryDate;   // unix ms — plain @field, NOT @date
     @field('cost_price') costPrice;
     @field('sync_status') syncStatus;
-    @date('created_at') createdAt;
+    @field('created_at') createdAt;   // plain @field, NOT @date
+    @field('updated_at') updatedAt;
 
     @relation('products', 'product_id') product;
 
-    // Helper: days until expiry from today
+    // expiry_date is raw unix ms — math works correctly now
     get daysUntilExpiry() {
-        const now = Date.now();
-        return Math.floor((this.expiryDate - now) / (1000 * 60 * 60 * 24));
+        return Math.floor((this.expiryDate - Date.now()) / (1000 * 60 * 60 * 24));
     }
 
-    get isNearExpiry() {
-        return this.daysUntilExpiry <= 30;
-    }
-
-    get isExpired() {
-        return this.daysUntilExpiry < 0;
-    }
+    get isNearExpiry() { return this.daysUntilExpiry <= 30 && this.daysUntilExpiry >= 0; }
+    get isExpired() { return this.daysUntilExpiry < 0; }
 }

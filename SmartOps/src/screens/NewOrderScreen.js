@@ -15,6 +15,7 @@ export default function NewOrderScreen({ navigation }) {
     const [paymentMode, setPaymentMode] = useState('cash');
     const [loading, setLoading] = useState(false);
     const [notFoundBarcode, setNotFoundBarcode] = useState(null);  // triggers "add product?" prompt
+    const [draftPriceItem, setDraftPriceItem] = useState(null);    // triggers "set price" prompt for legacy test data
 
     // ── Barcode scanned ────────────────────────────────────────────────────────
     async function handleScan(barcode) {
@@ -38,11 +39,25 @@ export default function NewOrderScreen({ navigation }) {
             .filter(b => b.daysUntilExpiry >= 0)
             .sort((a, b) => a.expiryDate - b.expiryDate)[0];
 
-        addToCart(product, validBatch);
+        // If already in cart, just increment with same price
+        const existingRow = cart.find(i => i.product.id === product.id);
+        if (existingRow) {
+            addToCart(product, validBatch, existingRow.unitPrice);
+            return;
+        }
+
+        // If legacy test data has 0 selling price, prompt user
+        if (!product.sellingPrice) {
+            setDraftPriceItem({ product, batch: validBatch, priceInput: '' });
+            setScanning(false);
+            return;
+        }
+
+        addToCart(product, validBatch, product.sellingPrice);
     }
 
     // ── Cart operations ────────────────────────────────────────────────────────
-    function addToCart(product, batch) {
+    function addToCart(product, batch, forcedPrice) {
         setCart(prev => {
             const existing = prev.findIndex(i => i.product.id === product.id);
             if (existing >= 0) {
@@ -53,7 +68,7 @@ export default function NewOrderScreen({ navigation }) {
             return [...prev, {
                 product,
                 quantity: 1,
-                unitPrice: product.sellingPrice ?? 0,
+                unitPrice: forcedPrice !== undefined ? forcedPrice : (product.sellingPrice || 0),
                 batchId: batch?.id ?? null,
             }];
         });
@@ -86,16 +101,13 @@ export default function NewOrderScreen({ navigation }) {
             let customerId = null;
             if (customerPhone.trim().length >= 10) {
                 const customer = await upsertCustomer({
-                    businessId: 'default',
                     name: customerPhone,
                     phone: customerPhone.trim(),
                 });
                 customerId = customer.id;
             }
-
             // recordSale uses database.write() — atomic, conflict-safe for multi-user
             await recordSale({
-                businessId: 'default',
                 customerId,
                 paymentMode,
                 items: cart.map(i => ({
@@ -255,6 +267,41 @@ export default function NewOrderScreen({ navigation }) {
                         <GhostButton
                             label="Skip"
                             onPress={() => { setNotFoundBarcode(null); setScanning(true); }}
+                            style={{ marginTop: spacing.sm }}
+                        />
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Draft Price Modal for Test Data */}
+            <Modal visible={!!draftPriceItem} transparent animationType="slide">
+                <View style={s.modalOverlay}>
+                    <View style={s.modalBox}>
+                        <Text style={s.modalTitle}>Set Item Price</Text>
+                        <Text style={s.modalText}>
+                            <Text style={{ fontWeight: '700', color: colors.teal }}>{draftPriceItem?.product?.name}</Text> has a price of ₹0 in the database (old test data). Setting a price is required for checkout.
+                        </Text>
+                        <TextInput
+                            style={[s.input, { marginTop: spacing.lg, fontSize: font.xxl, paddingVertical: spacing.lg, textAlign: 'center' }]}
+                            placeholder="₹0.00"
+                            placeholderTextColor={colors.textMuted}
+                            keyboardType="decimal-pad"
+                            autoFocus
+                            value={draftPriceItem?.priceInput || ''}
+                            onChangeText={v => setDraftPriceItem(prev => ({ ...prev, priceInput: v }))}
+                        />
+                        <PrimaryButton
+                            label="Add to cart"
+                            onPress={() => {
+                                const p = parseFloat(draftPriceItem.priceInput);
+                                if (!p || p <= 0) return Alert.alert('Invalid Price', 'Please enter a valid price amount');
+                                addToCart(draftPriceItem.product, draftPriceItem.batch, p);
+                                setDraftPriceItem(null);
+                            }}
+                        />
+                        <GhostButton
+                            label="Cancel"
+                            onPress={() => setDraftPriceItem(null)}
                             style={{ marginTop: spacing.sm }}
                         />
                     </View>

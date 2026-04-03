@@ -1,17 +1,65 @@
-# dependencies (backend + frontend safety)
+# =========================
+# DEPENDENCIES
+# =========================
 node_modules/
 
-# env files
+# =========================
+# ENV FILES
+# =========================
 .env
+.env.*
+!.env.example
 
-# logs
+# =========================
+# LOGS
+# =========================
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
 
-# build outputs
+# =========================
+# BUILD OUTPUTS
+# =========================
 dist/
 build/
+coverage/
 
-# OS
+# =========================
+# EXPO / REACT NATIVE
+# =========================
+.expo/
+.expo-shared/
+.expo/web-build/
+web-build/
+expo-env.d.ts
+
+# Metro cache
+.metro-cache/
+
+# =========================
+# ANDROID / IOS
+# =========================
+android/
+ios/
+
+# (⚠️ remove above two if you are using dev builds with native code)
+
+# =========================
+# OS FILES
+# =========================
 .DS_Store
+Thumbs.db
+
+# =========================
+# EDITOR / IDE
+# =========================
+.vscode/
+.idea/
+
+# =========================
+# MISC
+# =========================
+*.log
+*.tmp
+*.swp

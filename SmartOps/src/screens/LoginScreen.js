@@ -5,7 +5,7 @@ import {
     Platform, ScrollView, ActivityIndicator,
 } from 'react-native';
 import { AuthAPI } from '../services/api';
-import { startAutoSync } from '../sync/syncEngine';
+import { startAutoSync, setAuthToken, setBusinessId } from '../sync/syncEngine';
 import { colors, spacing, radius, font } from '../theme';
 
 export default function LoginScreen({ onLogin }) {
@@ -20,17 +20,22 @@ export default function LoginScreen({ onLogin }) {
         if (!phone.trim() || !password.trim()) {
             return Alert.alert('Fill in all fields');
         }
+        if (mode === 'register' && !name.trim()) {
+            return Alert.alert('Enter your shop name');
+        }
         setLoading(true);
         try {
             let res;
             if (mode === 'register') {
-                if (!name.trim()) return Alert.alert('Enter your shop name');
                 res = await AuthAPI.register(name.trim(), phone.trim(), password, type);
             } else {
                 res = await AuthAPI.login(phone.trim(), password);
             }
-            // Start background sync with JWT token
-            startAutoSync(res.token);
+            console.log("LOGIN RESPONSE:", res);
+            await setAuthToken(res.token);
+            await setBusinessId(res.business.id);
+            console.log("✅ Session saved");
+            startAutoSync();
             onLogin(res.token, res.business);
         } catch (err) {
             Alert.alert('Error', err.message || 'Something went wrong');

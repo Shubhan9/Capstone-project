@@ -1,6 +1,7 @@
 import { Database } from '@nozbe/watermelondb';
 import LokiJSAdapter from '@nozbe/watermelondb/adapters/lokijs';
-
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { setGenerator } from '@nozbe/watermelondb/utils/common/randomId';
 import schema from './schema';
 import Product from '../models/Product';
 import StockBatch from '../models/StockBatch';
@@ -9,27 +10,49 @@ import SaleOrder from '../models/SaleOrder';
 import SaleItem from '../models/SaleItem';
 import Customer from '../models/Customer';
 
-// LokiJS = pure JS, no native linking needed → works in Expo Go for testing
-// When ready for production: run `expo prebuild` and swap to SQLiteAdapter
+function uuidv4() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+        const r = Math.random() * 16 | 0;
+        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+}
+setGenerator(() => uuidv4());
+
+const STORAGE_KEY = '@bizops_lokijs_db';
+
+const lokiStorageAdapter = {
+    loadDatabase(dbname, callback) {
+        AsyncStorage.getItem(STORAGE_KEY)
+            .then(serialized => callback(serialized ?? null))
+            .catch(() => callback(null));
+    },
+    saveDatabase(dbname, serialized, callback) {
+        AsyncStorage.setItem(STORAGE_KEY, serialized)
+            .then(() => callback(null))
+            .catch(err => callback(err));
+    },
+    deleteDatabase(dbname, callback) {
+        AsyncStorage.removeItem(STORAGE_KEY)
+            .then(() => callback(null))
+            .catch(err => callback(err));
+    },
+};
+
 const adapter = new LokiJSAdapter({
     schema,
-    useWebWorker: false,    // must be false for React Native
+    useWebWorker: false,
     useIncrementalIndexedDB: false,
-    onSetUpError: error => {
-        console.error('WatermelonDB setup error:', error);
+    dbName: 'bizops',
+    lokiOptions: {
+        adapter: lokiStorageAdapter,  // ← THIS IS THE KEY LINE
+        autosave: true,
+        autosaveInterval: 1000,
     },
 });
 
 const database = new Database({
     adapter,
-    modelClasses: [
-        Product,
-        StockBatch,
-        StockTransaction,
-        SaleOrder,
-        SaleItem,
-        Customer,
-    ],
+    modelClasses: [Product, StockBatch, StockTransaction, SaleOrder, SaleItem, Customer],
 });
 
 export default database;

@@ -1,5 +1,5 @@
 import { Model } from '@nozbe/watermelondb';
-import { field, date, relation } from '@nozbe/watermelondb/decorators';
+import { field, relation } from '@nozbe/watermelondb/decorators';
 
 export const TXN_TYPES = {
     STOCK_IN: 'stock_in',
@@ -18,10 +18,11 @@ export default class StockTransaction extends Model {
 
     @field('product_id') productId;
     @field('batch_id') batchId;
-    @field('type') type;        // TXN_TYPES value
+    @field('type') type;
     @field('quantity') quantity;
     @field('txn_at') txnAt;
     @field('sync_status') syncStatus;
+    @field('updated_at') updatedAt;   // plain @field not @date
 
     @relation('products', 'product_id') product;
     @relation('stock_batches', 'batch_id') batch;
