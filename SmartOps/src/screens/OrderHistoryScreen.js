@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import {
-    View, Text, ScrollView, TouchableOpacity,
-    StyleSheet, RefreshControl, Modal,
+    View, Text, SectionList, TouchableOpacity,
+    StyleSheet, RefreshControl, Modal, ScrollView, ActivityIndicator,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Q } from '@nozbe/watermelondb';
@@ -10,61 +10,96 @@ import { getBusinessId } from '../sync/syncEngine';
 import { Badge, EmptyState } from '../../components/UI';
 import { colors, spacing, radius, font } from '../theme';
 
+const DATE_FILTERS = ['today', 'week', 'month', 'all'];
+const PAYMENT_FILTERS = ['all', 'cash', 'upi', 'credit'];
+
 export default function OrderHistoryScreen({ navigation }) {
     const [orders, setOrders] = useState([]);
-    const [selected, setSelected] = useState(null);  // order detail modal
+    const [selected, setSelected] = useState(null);
     const [items, setItems] = useState([]);
     const [refreshing, setRefreshing] = useState(false);
-    const [filter, setFilter] = useState('all'); // 'all'|'cash'|'upi'|'credit'
+    const [loadingItems, setLoadingItems] = useState(false);
+    const [paymentFilter, setPaymentFilter] = useState('all');
+    const [dateFilter, setDateFilter] = useState('week');
 
-    async function load() {
+    const load = useCallback(async (range) => {
         const bId = getBusinessId();
+        const clauses = [
+            Q.where('business_id', bId),
+            Q.sortBy('sale_at', Q.desc),
+        ];
+
+        const startAt = getRangeStart(range);
+        if (startAt !== null) {
+            clauses.push(Q.where('sale_at', Q.gte(startAt)));
+        }
+
         const rows = await database.get('sale_orders')
-            .query(
-                Q.where('business_id', bId),
-                Q.sortBy('sale_at', Q.desc),
-            )
+            .query(...clauses)
             .fetch();
+
         setOrders(rows);
+    }, []);
+
+    useFocusEffect(useCallback(() => {
+        load(dateFilter);
+    }, [dateFilter, load]));
+
+    async function onRefresh() {
+        setRefreshing(true);
+        await load(dateFilter);
+        setRefreshing(false);
     }
 
-    useFocusEffect(useCallback(() => { load(); }, []));
-
-    async function onRefresh() { setRefreshing(true); await load(); setRefreshing(false); }
-
     async function openOrder(order) {
-        const orderItems = await database.get('sale_items')
-            .query(Q.where('order_id', order.id))
-            .fetch();
-
-        // Enrich with product names
-        const enriched = await Promise.all(orderItems.map(async si => {
-            const product = await database.get('products').find(si.productId).catch(() => null);
-            return {
-                id: si.id,
-                productId: si.productId,
-                batchId: si.batchId,
-                quantity: si.quantity,
-                unitPrice: si.unitPrice,        // ← explicit, not spread
-                updatedAt: si.updatedAt,
-                productName: product?.name ?? 'Unknown product',
-            };
-        }));
-
-        setItems(enriched);
+        setLoadingItems(true);
         setSelected(order);
+        setItems([]);
+
+        try {
+            const orderItems = await database.get('sale_items')
+                .query(Q.where('order_id', order.id))
+                .fetch();
+
+            const productIds = [...new Set(orderItems.map(item => item.productId).filter(Boolean))];
+            const products = productIds.length === 0
+                ? []
+                : await database.get('products')
+                    .query(Q.where('id', Q.oneOf(productIds)))
+                    .fetch();
+
+            const productMap = new Map(products.map(product => [product.id, product.name]));
+
+            setItems(orderItems.map(item => ({
+                id: item.id,
+                productId: item.productId,
+                batchId: item.batchId,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                updatedAt: item.updatedAt,
+                productName: productMap.get(item.productId) ?? 'Unknown product',
+            })));
+        } finally {
+            setLoadingItems(false);
+        }
     }
 
     function formatTime(ms) {
-        const d = new Date(ms);
-        return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+        return new Date(ms).toLocaleTimeString('en-IN', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
+        });
     }
 
     function formatDate(ms) {
         const d = new Date(ms);
         const now = new Date();
         const isToday = d.toDateString() === now.toDateString();
-        const isYesterday = d.toDateString() === new Date(now - 86400000).toDateString();
+        const yesterday = new Date(now);
+        yesterday.setDate(now.getDate() - 1);
+        const isYesterday = d.toDateString() === yesterday.toDateString();
+
         if (isToday) return 'Today';
         if (isYesterday) return 'Yesterday';
         return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
@@ -76,110 +111,130 @@ export default function OrderHistoryScreen({ navigation }) {
         return colors.teal;
     }
 
-    // Group by date label
-    const filtered = orders.filter(o => filter === 'all' || o.paymentMode === filter);
+    const filteredOrders = orders.filter(order => (
+        paymentFilter === 'all' || order.paymentMode === paymentFilter
+    ));
 
-    const grouped = filtered.reduce((acc, o) => {
-        const label = formatDate(o.saleAt);
+    const grouped = filteredOrders.reduce((acc, order) => {
+        const label = formatDate(order.saleAt);
         if (!acc[label]) acc[label] = [];
-        acc[label].push(o);
+        acc[label].push(order);
         return acc;
     }, {});
 
-    const todayRevenue = orders
-        .filter(o => formatDate(o.saleAt) === 'Today')
-        .reduce((s, o) => s + o.totalAmount, 0);
+    const sections = Object.entries(grouped).map(([title, data]) => ({
+        title,
+        data,
+        total: data.reduce((sum, order) => sum + order.totalAmount, 0),
+    }));
+
+    const visibleRevenue = filteredOrders.reduce((sum, order) => sum + order.totalAmount, 0);
+    const visibleCount = filteredOrders.length;
 
     return (
         <View style={s.root}>
-            <ScrollView
+            <SectionList
+                sections={sections}
+                keyExtractor={item => item.id}
                 contentContainerStyle={s.scroll}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.teal} />}
                 showsVerticalScrollIndicator={false}
-            >
-                {/* Header */}
-                <View style={s.header}>
-                    <TouchableOpacity onPress={() => navigation.goBack()}>
-                        <Text style={s.back}>‹ Back</Text>
-                    </TouchableOpacity>
-                    <Text style={s.title}>Order History</Text>
-                    <View style={{ width: 50 }} />
-                </View>
+                stickySectionHeadersEnabled={false}
+                initialNumToRender={12}
+                maxToRenderPerBatch={10}
+                windowSize={7}
+                ListHeaderComponent={(
+                    <View>
+                        <View style={s.header}>
+                            <TouchableOpacity onPress={() => navigation.goBack()}>
+                                <Text style={s.back}>Back</Text>
+                            </TouchableOpacity>
+                            <Text style={s.title}>Order History</Text>
+                            <View style={{ width: 50 }} />
+                        </View>
 
-                {/* Today summary */}
-                <View style={s.summaryCard}>
-                    <View style={s.summaryLeft}>
-                        <Text style={s.summaryLabel}>TODAY'S TOTAL</Text>
-                        <Text style={s.summaryValue}>
-                            ₹{todayRevenue.toFixed(0)}
-                        </Text>
-                    </View>
-                    <View style={s.summaryRight}>
-                        <Text style={s.summaryCount}>
-                            {orders.filter(o => formatDate(o.saleAt) === 'Today').length}
-                        </Text>
-                        <Text style={s.summaryCountLabel}>orders</Text>
-                    </View>
-                </View>
-
-                {/* Filter by payment */}
-                <View style={s.filterRow}>
-                    {['all', 'cash', 'upi', 'credit'].map(f => (
-                        <TouchableOpacity
-                            key={f}
-                            style={[s.filterChip, filter === f && s.filterChipActive]}
-                            onPress={() => setFilter(f)}
-                        >
-                            <Text style={[s.filterText, filter === f && s.filterTextActive]}>
-                                {f.toUpperCase()}
-                            </Text>
-                        </TouchableOpacity>
-                    ))}
-                </View>
-
-                {/* Grouped orders */}
-                {Object.keys(grouped).length === 0
-                    ? <EmptyState icon="🧾" title="No orders yet" subtitle="Complete a sale to see it here" />
-                    : Object.entries(grouped).map(([dateLabel, dayOrders]) => (
-                        <View key={dateLabel}>
-                            <View style={s.dateHeader}>
-                                <Text style={s.dateLabel}>{dateLabel}</Text>
-                                <Text style={s.dateSub}>
-                                    ₹{dayOrders.reduce((s, o) => s + o.totalAmount, 0).toFixed(0)} · {dayOrders.length} orders
-                                </Text>
+                        <View style={s.summaryCard}>
+                            <View style={s.summaryLeft}>
+                                <Text style={s.summaryLabel}>VISIBLE TOTAL</Text>
+                                <Text style={s.summaryValue}>Rs.{visibleRevenue.toFixed(0)}</Text>
                             </View>
-                            {dayOrders.map(order => (
+                            <View style={s.summaryRight}>
+                                <Text style={s.summaryCount}>{visibleCount}</Text>
+                                <Text style={s.summaryCountLabel}>orders</Text>
+                            </View>
+                        </View>
+
+                        <Text style={s.filterLabel}>Date range</Text>
+                        <View style={s.filterRow}>
+                            {DATE_FILTERS.map(filter => (
                                 <TouchableOpacity
-                                    key={order.id}
-                                    style={s.orderRow}
-                                    onPress={() => openOrder(order)}
-                                    activeOpacity={0.75}
+                                    key={filter}
+                                    style={[s.filterChip, dateFilter === filter && s.filterChipActive]}
+                                    onPress={() => setDateFilter(filter)}
                                 >
-                                    <View style={[s.paymentStripe, { backgroundColor: paymentColor(order.paymentMode) }]} />
-                                    <View style={s.orderMain}>
-                                        <View style={s.orderTop}>
-                                            <Text style={s.orderId}>
-                                                #{order.id.slice(-6).toUpperCase()}
-                                            </Text>
-                                            <Text style={s.orderAmount}>₹{order.totalAmount.toFixed(2)}</Text>
-                                        </View>
-                                        <View style={s.orderBottom}>
-                                            <Text style={s.orderTime}>{formatTime(order.saleAt)}</Text>
-                                            <Badge
-                                                label={order.paymentMode.toUpperCase()}
-                                                color={paymentColor(order.paymentMode)}
-                                            />
-                                        </View>
-                                    </View>
-                                    <Text style={s.chevron}>›</Text>
+                                    <Text style={[s.filterText, dateFilter === filter && s.filterTextActive]}>
+                                        {dateFilterLabel(filter)}
+                                    </Text>
                                 </TouchableOpacity>
                             ))}
                         </View>
-                    ))
-                }
-            </ScrollView>
 
-            {/* Order detail modal */}
+                        <Text style={s.filterLabel}>Payment mode</Text>
+                        <View style={[s.filterRow, s.filterRowBottom]}>
+                            {PAYMENT_FILTERS.map(filter => (
+                                <TouchableOpacity
+                                    key={filter}
+                                    style={[s.filterChip, paymentFilter === filter && s.filterChipActive]}
+                                    onPress={() => setPaymentFilter(filter)}
+                                >
+                                    <Text style={[s.filterText, paymentFilter === filter && s.filterTextActive]}>
+                                        {filter.toUpperCase()}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    </View>
+                )}
+                ListEmptyComponent={(
+                    <EmptyState
+                        icon="OK"
+                        title="No orders found"
+                        subtitle="Try a wider date range or complete a sale to see it here"
+                    />
+                )}
+                renderSectionHeader={({ section }) => (
+                    <View style={s.dateHeader}>
+                        <Text style={s.dateLabel}>{section.title}</Text>
+                        <Text style={s.dateSub}>
+                            Rs.{section.total.toFixed(0)} . {section.data.length} orders
+                        </Text>
+                    </View>
+                )}
+                renderItem={({ item: order }) => (
+                    <TouchableOpacity
+                        style={s.orderRow}
+                        onPress={() => openOrder(order)}
+                        activeOpacity={0.75}
+                    >
+                        <View style={[s.paymentStripe, { backgroundColor: paymentColor(order.paymentMode) }]} />
+                        <View style={s.orderMain}>
+                            <View style={s.orderTop}>
+                                <Text style={s.orderId}>#{order.id.slice(-6).toUpperCase()}</Text>
+                                <Text style={s.orderAmount}>Rs.{order.totalAmount.toFixed(2)}</Text>
+                            </View>
+                            <View style={s.orderBottom}>
+                                <Text style={s.orderTime}>{formatTime(order.saleAt)}</Text>
+                                <Badge
+                                    label={order.paymentMode.toUpperCase()}
+                                    color={paymentColor(order.paymentMode)}
+                                />
+                            </View>
+                        </View>
+                        <Text style={s.chevron}>{'>'}</Text>
+                    </TouchableOpacity>
+                )}
+            />
+
             <Modal visible={!!selected} transparent animationType="slide" onRequestClose={() => setSelected(null)}>
                 <View style={s.modalOverlay}>
                     <View style={s.modalBox}>
@@ -188,7 +243,7 @@ export default function OrderHistoryScreen({ navigation }) {
                                 Order #{selected?.id.slice(-6).toUpperCase()}
                             </Text>
                             <TouchableOpacity onPress={() => setSelected(null)}>
-                                <Text style={s.modalClose}>✕</Text>
+                                <Text style={s.modalClose}>X</Text>
                             </TouchableOpacity>
                         </View>
 
@@ -202,29 +257,70 @@ export default function OrderHistoryScreen({ navigation }) {
                             />
                         </View>
 
-                        <ScrollView style={s.itemsList} showsVerticalScrollIndicator={false}>
-                            {items.map((item, i) => (
-                                <View key={i} style={s.itemRow}>
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={s.itemName}>{item.productName}</Text>
-                                        <Text style={s.itemMeta}>₹{item.unitPrice} × {item.quantity}</Text>
+                        {loadingItems ? (
+                            <View style={s.loadingState}>
+                                <ActivityIndicator color={colors.teal} />
+                                <Text style={s.loadingText}>Loading order details...</Text>
+                            </View>
+                        ) : (
+                            <ScrollView style={s.itemsList} showsVerticalScrollIndicator={false}>
+                                {items.map(item => (
+                                    <View key={item.id} style={s.itemRow}>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={s.itemName}>{item.productName}</Text>
+                                            <Text style={s.itemMeta}>Rs.{item.unitPrice} x {item.quantity}</Text>
+                                        </View>
+                                        <Text style={s.itemTotal}>
+                                            Rs.{(item.unitPrice * item.quantity).toFixed(2)}
+                                        </Text>
                                     </View>
-                                    <Text style={s.itemTotal}>
-                                        ₹{(item.unitPrice * item.quantity).toFixed(2)}
-                                    </Text>
-                                </View>
-                            ))}
-                        </ScrollView>
+                                ))}
+                            </ScrollView>
+                        )}
 
                         <View style={s.modalTotal}>
                             <Text style={s.modalTotalLabel}>Total</Text>
-                            <Text style={s.modalTotalValue}>₹{selected?.totalAmount.toFixed(2)}</Text>
+                            <Text style={s.modalTotalValue}>Rs.{selected?.totalAmount.toFixed(2)}</Text>
                         </View>
                     </View>
                 </View>
             </Modal>
         </View>
     );
+}
+
+function getRangeStart(filter) {
+    const now = new Date();
+
+    if (filter === 'today') {
+        const start = new Date(now);
+        start.setHours(0, 0, 0, 0);
+        return start.getTime();
+    }
+
+    if (filter === 'week') {
+        const start = new Date(now);
+        const day = start.getDay();
+        const diff = day === 0 ? 6 : day - 1;
+        start.setDate(start.getDate() - diff);
+        start.setHours(0, 0, 0, 0);
+        return start.getTime();
+    }
+
+    if (filter === 'month') {
+        const start = new Date(now.getFullYear(), now.getMonth(), 1);
+        start.setHours(0, 0, 0, 0);
+        return start.getTime();
+    }
+
+    return null;
+}
+
+function dateFilterLabel(filter) {
+    if (filter === 'today') return 'Today';
+    if (filter === 'week') return 'This Week';
+    if (filter === 'month') return 'This Month';
+    return 'All';
 }
 
 const s = StyleSheet.create({
@@ -252,7 +348,9 @@ const s = StyleSheet.create({
     summaryCount: { color: colors.teal, fontSize: 32, fontWeight: '800' },
     summaryCountLabel: { color: colors.textMuted, fontSize: font.xs },
 
-    filterRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg },
+    filterLabel: { color: colors.textMuted, fontSize: font.xs, fontWeight: '700', marginBottom: spacing.sm, letterSpacing: 0.6 },
+    filterRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md, flexWrap: 'wrap' },
+    filterRowBottom: { marginBottom: spacing.lg },
     filterChip: {
         paddingHorizontal: 14, paddingVertical: 7,
         borderRadius: radius.full, borderWidth: 1,
@@ -306,6 +404,9 @@ const s = StyleSheet.create({
         alignItems: 'center', marginBottom: spacing.lg,
     },
     modalMetaText: { color: colors.textMuted, fontSize: font.sm },
+
+    loadingState: { alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.xl },
+    loadingText: { color: colors.textMuted, fontSize: font.sm, marginTop: spacing.sm },
 
     itemsList: { maxHeight: 300 },
     itemRow: {
