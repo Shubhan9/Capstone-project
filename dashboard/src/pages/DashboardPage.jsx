@@ -223,8 +223,11 @@ export default function DashboardPage({ auth }) {
     }), { cash: 0, upi: 0, credit: 0 }), [chartData]);
 
     const inventory = state.inventory.data;
-    const reorderItems = inventory?.reorder?.items || [];
-    const stockRiskItems = inventory?.stock_risk?.items || [];
+    const reorderItems = (inventory?.reorder?.items || [])
+        .filter(item => item.days_of_cover > 0 && item.days_of_cover < 30)
+
+    const stockRiskItems = (inventory?.stock_risk?.items || [])
+        .filter(item => item.days_of_cover > 0 && item.days_of_cover < 30)
     const expiryItems = inventory?.expiry_risk?.items || [];
     const deadStockItems = inventory?.dead_stock?.items || [];
     const opportunityItems = inventory?.opportunities?.items || [];
@@ -463,12 +466,12 @@ export default function DashboardPage({ auth }) {
                                                             <span className={`severity-pill severity-pill--${item.urgency}`}>{item.urgency}</span>
                                                         </div>
                                                         <div className="insight-metrics">
-                                                            <Metric label="Cover" value={item.days_of_cover ? `${item.days_of_cover} days` : 'No signal'} />
+                                                            <Metric label="Cover" value={formatCoverDays(item.days_of_cover) || 'No signal'} />
                                                             <Metric label="Reorder" value={`${item.suggested_reorder_qty} ${item.unit}`} />
                                                             <Metric label="Cost" value={formatCurrency(item.estimated_reorder_cost)} />
                                                         </div>
                                                         <ul className="reason-list">
-                                                            {item.reasons.slice(0, 3).map(reason => <li key={reason}>{reason}</li>)}
+                                                            {item.reasons.slice(0, 3).map(reason => <li key={reason}>{cleanReasonText(reason)}</li>)}
                                                         </ul>
                                                         <p className="insight-card__action">{item.recommended_action}</p>
                                                     </div>
@@ -500,7 +503,7 @@ export default function DashboardPage({ auth }) {
                                                                         <span>{item.category}</span>
                                                                     </div>
                                                                 </td>
-                                                                <td>{item.days_of_cover ? `${item.days_of_cover} days` : 'No signal'}</td>
+                                                                <td>{formatCoverDays(item.days_of_cover) || 'No signal'}</td>
                                                                 <td><span className={`severity-pill severity-pill--${item.risk_band}`}>{item.risk_band}</span></td>
                                                                 <td>{formatCurrency(item.estimated_revenue_risk)}</td>
                                                             </tr>
@@ -636,4 +639,28 @@ function getSalesSubtitle(period) {
 
 function totalPayments(totals) {
     return totals.cash + totals.upi + totals.credit;
+}
+
+function formatCoverDays(value) {
+    if (value === null || value === undefined) return null;
+
+    const days = Math.round(value);
+
+    if (days <= 0) return 'Out of stock';
+    if (days === 1) return '1 day';
+    if (days <= 3) return `${days} days (low)`;
+    if (days <= 7) return `${days} days`;
+    return `${days}+ days`;
+}
+
+
+function cleanReasonText(reason) {
+    if (!reason) return reason;
+
+    return reason.replace(/(\d+(\.\d+)?)\s*days?/gi, (match, num) => {
+        const rounded = Math.round(parseFloat(num));
+
+        if (rounded <= 3) return `⚠️ ${rounded} days`;
+        return `${rounded} days`;
+    });
 }
