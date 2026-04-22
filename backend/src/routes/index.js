@@ -41,5 +41,11 @@ router.get('/analytics/dashboard', analytics.dashboard);
 router.get('/analytics/sales', analytics.sales);         // ?period=daily|weekly|monthly
 router.get('/analytics/top-products', analytics.topProducts);   // ?limit=10
 router.get('/analytics/customers', analytics.customerStats);
+router.get('/analytics/inventory/reorder-suggestions', analytics.reorderSuggestions);
+router.get('/analytics/inventory/stock-risk', analytics.stockRisk);
+router.get('/analytics/inventory/expiry-risk', analytics.expiryRisk);
+router.get('/analytics/inventory/dead-stock', analytics.deadStock);
+router.get('/analytics/inventory/opportunities', analytics.opportunities);
+router.get('/analytics/inventory/intelligence', analytics.inventoryIntelligence);
 
 module.exports = router;
