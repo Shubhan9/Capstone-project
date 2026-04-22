@@ -30,32 +30,63 @@ export default function LoginPage({ auth }) {
     return (
         <main className="auth-page">
             <section className="auth-card auth-card--intro">
-                <p className="eyebrow">SmartOps Dashboard</p>
-                <h1>Operational intelligence for your store</h1>
-                <p className="auth-copy">
-                    Review revenue trends, product movement, payment mix, and customer segments
-                    from a single examiner-ready dashboard.
-                </p>
+                <div className="auth-brand">
+                    <p className="eyebrow">SmartOps Dashboard</p>
+                    <h1>Operations control for modern retail.</h1>
+                    <p className="auth-copy">
+                        Monitor sales, stock pressure, expiry risk, reorder priorities, and customer demand
+                        from one clean business dashboard.
+                    </p>
+                </div>
+
+                <div className="auth-preview">
+                    <div className="auth-preview__header">
+                        <span>Today</span>
+                        <span className="auth-preview__status">Live business feed</span>
+                    </div>
+                    <div className="auth-preview__grid">
+                        <div>
+                            <strong>Revenue</strong>
+                            <span>Track daily performance</span>
+                        </div>
+                        <div>
+                            <strong>Inventory</strong>
+                            <span>Spot low stock and expiry risk</span>
+                        </div>
+                        <div>
+                            <strong>Recommendations</strong>
+                            <span>Reorder and opportunity insights</span>
+                        </div>
+                        <div>
+                            <strong>Customers</strong>
+                            <span>View segments and repeat buyers</span>
+                        </div>
+                    </div>
+                </div>
+
                 <div className="auth-highlights">
                     <div>
                         <strong>5</strong>
-                        <span>presentation-ready panels</span>
+                        <span>business intelligence modules</span>
                     </div>
                     <div>
                         <strong>JWT</strong>
-                        <span>same business auth as mobile</span>
+                        <span>same auth layer as mobile</span>
                     </div>
                     <div>
                         <strong>Live API</strong>
-                        <span>powered by existing analytics routes</span>
+                        <span>connected to your analytics backend</span>
                     </div>
                 </div>
             </section>
 
             <section className="auth-card auth-card--form">
                 <div className="auth-card__header">
-                    <h2>Business Login</h2>
-                    <p>API base URL: {getApiBaseUrl()}</p>
+                    <div>
+                        <p className="eyebrow">Secure Access</p>
+                        <h2>Business Login</h2>
+                    </div>
+                    <p className="auth-api">API base URL: {getApiBaseUrl()}</p>
                 </div>
 
                 <form className="auth-form" onSubmit={handleSubmit}>
