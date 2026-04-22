@@ -273,8 +273,9 @@ button {
 .auth-page {
     min-height: 100vh;
     display: grid;
-    grid-template-columns: 1.05fr 0.95fr;
-    gap: 20px;
+    grid-template-columns: minmax(0, 1.08fr) minmax(420px, 0.92fr);
+    align-items: center;
+    gap: 24px;
     padding: 24px;
     background: var(--bg);
 }
@@ -287,32 +288,37 @@ button {
 .auth-card--intro {
     display: flex;
     flex-direction: column;
-    gap: 28px;
-    justify-content: space-between;
+    gap: 24px;
+    justify-content: center;
+    min-height: 640px;
 }
 
 .auth-brand {
     display: grid;
-    gap: 18px;
+    gap: 16px;
+    max-width: 620px;
 }
 
 .auth-card--intro h1 {
     margin: 0;
-    font-size: clamp(34px, 5vw, 68px);
+    font-size: clamp(34px, 5vw, 78px);
     letter-spacing: -0.05em;
-    line-height: 1;
-    max-width: 10ch;
+    line-height: 0.96;
+    max-width: 8ch;
 }
 
 .auth-copy {
-    max-width: 52ch;
+    margin: 0;
+    max-width: 50ch;
     color: var(--text-secondary);
-    font-size: 15px;
+    font-size: 16px;
+    line-height: 1.7;
 }
 
 .auth-preview {
-    padding: 18px;
-    border-radius: 18px;
+    max-width: 720px;
+    padding: 20px;
+    border-radius: 20px;
     background: var(--bg-input);
     border: 1px solid var(--border-light);
 }
@@ -339,15 +345,20 @@ button {
 }
 
 .auth-preview__grid div {
-    padding: 14px;
+    min-height: 112px;
+    padding: 16px;
     border-radius: 14px;
     background: var(--bg-card);
     border: 1px solid var(--border);
+    display: grid;
+    align-content: start;
+    gap: 6px;
 }
 
 .auth-preview__grid strong {
     display: block;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
+    font-size: 18px;
 }
 
 .auth-preview__grid span {
@@ -355,37 +366,16 @@ button {
     font-size: 13px;
 }
 
-.auth-highlights {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 12px;
-}
-
-.auth-highlights div {
-    padding: 16px;
-    border-radius: 16px;
-    background: var(--bg-input);
-    border: 1px solid var(--border-light);
-}
-
-.auth-highlights strong {
-    display: block;
-    font-size: 20px;
-    margin-bottom: 4px;
-}
-
-.auth-highlights span {
-    color: var(--text-secondary);
-    font-size: 13px;
-}
-
 .auth-card--form {
     align-self: center;
+    max-width: 760px;
+    width: 100%;
+    justify-self: stretch;
 }
 
 .auth-card__header {
     display: grid;
-    gap: 8px;
+    gap: 14px;
 }
 
 .auth-card__header h2 {
@@ -393,10 +383,29 @@ button {
     font-size: 26px;
 }
 
-.auth-card__header p,
+.auth-meta {
+    display: grid;
+    gap: 4px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+}
+
+.auth-api-label {
+    margin: 0;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 11px;
+    font-weight: 700;
+}
+
 .auth-api {
     margin: 0;
     color: var(--text-secondary);
+    word-break: break-word;
+    line-height: 1.5;
 }
 
 .auth-form {
@@ -805,7 +814,7 @@ th {
     color: var(--text-secondary);
 }
 
-.reason-list li + li {
+.reason-list li+li {
     margin-top: 4px;
 }
 
@@ -885,6 +894,7 @@ th {
 }
 
 @media (max-width: 1180px) {
+
     .kpi-grid,
     .segment-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -901,9 +911,14 @@ th {
     .auth-preview__grid {
         grid-template-columns: 1fr 1fr;
     }
+
+    .auth-card--intro {
+        min-height: auto;
+    }
 }
 
 @media (max-width: 760px) {
+
     .shell,
     .auth-page {
         padding: 16px;
@@ -919,7 +934,6 @@ th {
 
     .kpi-grid,
     .sales-metrics,
-    .auth-highlights,
     .segment-grid,
     .insight-metrics,
     .auth-preview__grid {
@@ -930,5 +944,22 @@ th {
         width: 100%;
         display: grid;
         grid-template-columns: 1fr 1fr;
+    }
+
+    .auth-card {
+        padding: 22px;
+    }
+
+    .auth-card--intro h1 {
+        max-width: none;
+        font-size: clamp(32px, 10vw, 52px);
+    }
+
+    .auth-preview {
+        padding: 16px;
+    }
+
+    .auth-preview__grid div {
+        min-height: auto;
     }
 }

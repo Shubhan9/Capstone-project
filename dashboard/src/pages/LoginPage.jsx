@@ -63,21 +63,6 @@ export default function LoginPage({ auth }) {
                         </div>
                     </div>
                 </div>
-
-                <div className="auth-highlights">
-                    <div>
-                        <strong>5</strong>
-                        <span>business intelligence modules</span>
-                    </div>
-                    <div>
-                        <strong>JWT</strong>
-                        <span>same auth layer as mobile</span>
-                    </div>
-                    <div>
-                        <strong>Live API</strong>
-                        <span>connected to your analytics backend</span>
-                    </div>
-                </div>
             </section>
 
             <section className="auth-card auth-card--form">
@@ -86,7 +71,7 @@ export default function LoginPage({ auth }) {
                         <p className="eyebrow">Secure Access</p>
                         <h2>Business Login</h2>
                     </div>
-                    <p className="auth-api">API base URL: {getApiBaseUrl()}</p>
+
                 </div>
 
                 <form className="auth-form" onSubmit={handleSubmit}>
