@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity,
     TextInput, StyleSheet, Alert, Modal, KeyboardAvoidingView, Platform,
@@ -254,7 +254,7 @@ export default function NewOrderScreen({ navigation }) {
                     <View style={s.modalBox}>
                         <Text style={s.modalTitle}>Product not found</Text>
                         <Text style={s.modalText}>
-                            Barcode <Text style={{ color: colors.amber }}>{notFoundBarcode}</Text> isn't in your inventory yet.
+                            Barcode <Text style={{ color: colors.amber }}>{notFoundBarcode}</Text> isn&apos;t in your inventory yet.
                         </Text>
                         <PrimaryButton
                             label="Register new product"

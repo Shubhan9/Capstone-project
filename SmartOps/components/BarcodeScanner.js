@@ -19,7 +19,7 @@ export default function BarcodeScanner({ onScan, onClose, hint }) {
         };
     }, []);
 
-    async function handleScan({ data, type }) {
+    async function handleScan({ data }) {
         if (scanLockRef.current) return;
 
         scanLockRef.current = true;
@@ -38,10 +38,10 @@ export default function BarcodeScanner({ onScan, onClose, hint }) {
 
     if (!permission?.granted) {
         return (
-            <View style={s.permissionBox} >
-                <Text style={s.permText}> Camera permission needed </Text>
-                < TouchableOpacity style={s.permBtn} onPress={requestPermission} >
-                    <Text style={s.permBtnText}> Allow camera </Text>
+            <View style={s.permissionBox}>
+                <Text style={s.permText}>Camera permission needed</Text>
+                <TouchableOpacity style={s.permBtn} onPress={requestPermission}>
+                    <Text style={s.permBtnText}>Allow camera</Text>
                 </TouchableOpacity>
             </View>
         );
@@ -61,21 +61,21 @@ export default function BarcodeScanner({ onScan, onClose, hint }) {
             {/* Scanning frame overlay */}
             <View style={s.overlay}>
                 <View style={s.frameTop} />
-                < View style={s.frameRow} >
+                <View style={s.frameRow}>
                     <View style={s.frameSide} />
-                    < View style={s.frame} >
+                    <View style={s.frame}>
                         <View style={[s.corner, s.tl]} />
-                        < View style={[s.corner, s.tr]} />
+                        <View style={[s.corner, s.tr]} />
                         <View style={[s.corner, s.bl]} />
-                        < View style={[s.corner, s.br]} />
+                        <View style={[s.corner, s.br]} />
                         {scanned && <View style={s.scannedFlash} />}
                     </View>
-                    < View style={s.frameSide} />
+                    <View style={s.frameSide} />
                 </View>
-                < View style={s.frameBottom} >
-                    <Text style={s.hint}> {hint || 'Point at a barcode'}</Text>
-                    < TouchableOpacity style={s.closeBtn} onPress={onClose} >
-                        <Text style={s.closeBtnText}>✕  Close </Text>
+                <View style={s.frameBottom}>
+                    <Text style={s.hint}>{hint || 'Point at a barcode'}</Text>
+                    <TouchableOpacity style={s.closeBtn} onPress={onClose}>
+                        <Text style={s.closeBtnText}>✕  Close</Text>
                     </TouchableOpacity>
                 </View>
             </View>
