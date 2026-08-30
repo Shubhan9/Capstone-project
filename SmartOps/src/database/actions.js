@@ -170,13 +170,32 @@ export async function upsertCustomer({ name, phone }) {
 
 export async function getLowStockProducts() {
     const bId = getBusinessId();
+
     const products = await database.get('products')
         .query(Q.where('business_id', bId))
         .fetch();
 
+    if (products.length === 0) return [];
+
+    // One query for all transactions instead of one per product (fixes N+1)
+    const productIds = products.map(p => p.id);
+    const allTransactions = await database.get('stock_transactions')
+        .query(Q.where('product_id', Q.oneOf(productIds)))
+        .fetch();
+
+    const stockByProduct = {};
+    for (const t of allTransactions) {
+        if (stockByProduct[t.productId] === undefined) stockByProduct[t.productId] = 0;
+        if (t.type === 'stock_in' || t.type === 'return') {
+            stockByProduct[t.productId] += t.quantity;
+        } else {
+            stockByProduct[t.productId] -= t.quantity;
+        }
+    }
+
     const results = [];
     for (const p of products) {
-        const stock = await p.currentStock();
+        const stock = stockByProduct[p.id] ?? 0;
         if (stock <= p.reorderLevel) results.push({ product: p, stock });
     }
     return results.sort((a, b) => a.stock - b.stock);
