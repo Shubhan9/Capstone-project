@@ -1,16 +1,6 @@
 const { withTransaction, query } = require('../db/pool');
 const { asyncHandler } = require('../middleware/errors');
 
-function pickSyncSample(rows, fields) {
-    const row = rows[0];
-    if (!row) return null;
-
-    return fields.reduce((sample, field) => {
-        sample[field] = row[field];
-        return sample;
-    }, { id: row.id });
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // PULL  GET /api/sync/pull?last_pulled_at=<unix_ms>
 //
@@ -95,17 +85,6 @@ const pull = asyncHandler(async (req, res) => {
             [businessId, since]
         ),
     ]);
-
-    console.log('[sync/pull] counts', {
-        businessId,
-        since,
-        products: products.rows.length,
-        sale_orders: orders.rows.length,
-        sale_items: items.rows.length,
-    });
-    console.log('[sync/pull] PRODUCT SAMPLE', pickSyncSample(products.rows, ['selling_price', 'updated_at']));
-    console.log('[sync/pull] ORDER SAMPLE', pickSyncSample(orders.rows, ['sale_at', 'total_amount', 'updated_at']));
-    console.log('[sync/pull] ITEM SAMPLE', pickSyncSample(items.rows, ['unit_price', 'quantity', 'updated_at']));
 
     res.json({
         timestamp: now,

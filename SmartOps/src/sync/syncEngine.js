@@ -87,19 +87,6 @@ function normalizeTableChanges(tableChanges, { numberFields = [], timestampField
     };
 }
 
-function firstSyncedRow(tableChanges) {
-    return tableChanges?.created?.[0] || tableChanges?.updated?.[0] || null;
-}
-
-function pickSample(row, fields) {
-    if (!row) return null;
-
-    return fields.reduce((sample, field) => {
-        sample[field] = row[field];
-        return sample;
-    }, { id: row.id });
-}
-
 function normalizePullChanges(changes) {
     return {
         ...changes,
@@ -161,19 +148,6 @@ export async function syncWithServer() {
                 }
                 const { changes, timestamp } = await res.json();
                 const normalizedChanges = normalizePullChanges(changes);
-
-                console.log('[sync] PRODUCT SAMPLE', pickSample(
-                    firstSyncedRow(normalizedChanges.products),
-                    ['selling_price', 'updated_at']
-                ));
-                console.log('[sync] ORDER SAMPLE', pickSample(
-                    firstSyncedRow(normalizedChanges.sale_orders),
-                    ['sale_at', 'total_amount', 'updated_at']
-                ));
-                console.log('[sync] ITEM SAMPLE', pickSample(
-                    firstSyncedRow(normalizedChanges.sale_items),
-                    ['unit_price', 'quantity', 'updated_at']
-                ));
 
                 return { changes: normalizedChanges, timestamp };
             },

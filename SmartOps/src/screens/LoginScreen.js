@@ -31,10 +31,8 @@ export default function LoginScreen({ onLogin }) {
             } else {
                 res = await AuthAPI.login(phone.trim(), password);
             }
-            console.log("LOGIN RESPONSE:", res);
             await setAuthToken(res.token);
             await setBusinessId(res.business.id);
-            console.log("✅ Session saved");
             startAutoSync();
             onLogin(res.token, res.business);
         } catch (err) {
