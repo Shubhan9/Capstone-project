@@ -168,30 +168,56 @@ export async function upsertCustomer({ name, phone }) {
 
 // ── Analytics ─────────────────────────────────────────────────────────────────
 
-export async function getLowStockProducts() {
-    const bId = getBusinessId();
+// Signed quantity for a transaction: stock_in/return add, everything else subtracts.
+function signedQty(txn) {
+    return (txn.type === 'stock_in' || txn.type === 'return') ? txn.quantity : -txn.quantity;
+}
 
-    const products = await database.get('products')
-        .query(Q.where('business_id', bId))
-        .fetch();
-
-    if (products.length === 0) return [];
-
-    // One query for all transactions instead of one per product (fixes N+1)
+// Current stock for many products in ONE query (avoids N+1 of product.currentStock()).
+// Returns { [productId]: number }.
+export async function getStockLevels(products) {
+    if (!products || products.length === 0) return {};
     const productIds = products.map(p => p.id);
-    const allTransactions = await database.get('stock_transactions')
+    const txns = await database.get('stock_transactions')
         .query(Q.where('product_id', Q.oneOf(productIds)))
         .fetch();
 
-    const stockByProduct = {};
-    for (const t of allTransactions) {
-        if (stockByProduct[t.productId] === undefined) stockByProduct[t.productId] = 0;
-        if (t.type === 'stock_in' || t.type === 'return') {
-            stockByProduct[t.productId] += t.quantity;
-        } else {
-            stockByProduct[t.productId] -= t.quantity;
-        }
+    const stockByProduct = Object.fromEntries(productIds.map(id => [id, 0]));
+    for (const t of txns) stockByProduct[t.productId] += signedQty(t);
+    return stockByProduct;
+}
+
+// Remaining quantity for many batches in ONE query (avoids N+1 of batch.currentQuantity()).
+// Returns { [batchId]: number }.
+export async function getBatchQuantities(batches) {
+    if (!batches || batches.length === 0) return {};
+    const batchIds = batches.map(b => b.id);
+    const txns = await database.get('stock_transactions')
+        .query(Q.where('batch_id', Q.oneOf(batchIds)))
+        .fetch();
+
+    const qtyByBatch = Object.fromEntries(batchIds.map(id => [id, 0]));
+    for (const t of txns) {
+        if (t.batchId in qtyByBatch) qtyByBatch[t.batchId] += signedQty(t);
     }
+    return qtyByBatch;
+}
+
+// Fetch many products by id in ONE query. Returns a Map<id, Product>.
+export async function getProductsByIds(ids) {
+    const unique = [...new Set((ids || []).filter(Boolean))];
+    if (unique.length === 0) return new Map();
+    const products = await database.get('products')
+        .query(Q.where('id', Q.oneOf(unique)))
+        .fetch();
+    return new Map(products.map(p => [p.id, p]));
+}
+
+export async function getLowStockProducts() {
+    const products = await getAllProducts();
+    if (products.length === 0) return [];
+
+    const stockByProduct = await getStockLevels(products);
 
     const results = [];
     for (const p of products) {

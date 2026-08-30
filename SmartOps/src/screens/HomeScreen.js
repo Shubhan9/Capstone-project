@@ -1,10 +1,10 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity,
     StyleSheet, RefreshControl, StatusBar, Alert
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { getLowStockProducts, getNearExpiryBatches, getTodaySales } from '../database/actions';
+import { getLowStockProducts, getNearExpiryBatches, getTodaySales, getBatchQuantities } from '../database/actions';
 import { SectionHeader } from '../../components/UI';
 import { colors, spacing, radius, font } from '../theme';
 
@@ -19,16 +19,13 @@ export default function HomeScreen({ navigation, onLogout, name }) {
             getTodaySales(),
         ]);
 
-        const actionableExpiry = await Promise.all(
-            expiry.map(async batch => {
-                const remainingQty = await batch.currentQuantity();
-                return remainingQty > 0 ? batch : null;
-            })
-        );
+        // Count near-expiry batches that still have stock left — one query, not one per batch.
+        const expiryQtys = await getBatchQuantities(expiry);
+        const actionableExpiry = expiry.filter(batch => (expiryQtys[batch.id] ?? 0) > 0);
 
         setStats({
             lowStock: lowStock.length,
-            expiry: actionableExpiry.filter(Boolean).length,
+            expiry: actionableExpiry.length,
             sales: todaySales.count,
             revenue: todaySales.total,
         });
@@ -74,7 +71,7 @@ export default function HomeScreen({ navigation, onLogout, name }) {
 
                 {/* Main Revenue Card */}
                 <View style={s.revenueCard}>
-                    <Text style={s.revenueLabel}>TODAY'S REVENUE</Text>
+                    <Text style={s.revenueLabel}>TODAY&apos;S REVENUE</Text>
                     <Text style={s.revenueValue}>₹{stats.revenue.toFixed(0)}</Text>
 
                     <View style={s.revenueStatsRow}>

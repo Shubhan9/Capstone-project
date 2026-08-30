@@ -4,7 +4,7 @@ import {
     StyleSheet, RefreshControl,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { getLowStockProducts, getNearExpiryBatches } from '../database/actions';
+import { getLowStockProducts, getNearExpiryBatches, getBatchQuantities, getProductsByIds } from '../database/actions';
 import { Card, Badge, EmptyState } from '../../components/UI';
 import { colors, spacing, radius, font } from '../theme';
 
@@ -20,16 +20,22 @@ export default function AlertsScreen({ navigation }) {
             getNearExpiryBatches(30),
         ]);
 
-        const ne = await Promise.all(nearExpiryBatches.map(async batch => {
-            const [product, remainingQty] = await Promise.all([
-                batch.product.fetch(),
-                batch.currentQuantity(),
-            ]);
-            return { batch, product, remainingQty };
-        }));
+        // Resolve quantities and products in two batched queries instead of two per batch.
+        const [qtyByBatch, productMap] = await Promise.all([
+            getBatchQuantities(nearExpiryBatches),
+            getProductsByIds(nearExpiryBatches.map(batch => batch.productId)),
+        ]);
+
+        const ne = nearExpiryBatches
+            .map(batch => ({
+                batch,
+                product: productMap.get(batch.productId),
+                remainingQty: qtyByBatch[batch.id] ?? 0,
+            }))
+            .filter(({ remainingQty, product }) => remainingQty > 0 && product);
 
         setLowStock(ls);
-        setNearExpiry(ne.filter(({ remainingQty }) => remainingQty > 0));
+        setNearExpiry(ne);
     }
 
     useFocusEffect(useCallback(() => { load(); }, []));

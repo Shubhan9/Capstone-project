@@ -4,7 +4,7 @@ import {
     StyleSheet, RefreshControl, TextInput,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { getAllProducts } from '../database/actions';
+import { getAllProducts, getStockLevels } from '../database/actions';
 import { Badge, EmptyState } from '../../components/UI';
 import { colors, spacing, radius, font } from '../theme';
 
@@ -17,10 +17,7 @@ export default function InventoryScreen({ navigation }) {
 
     async function load() {
         const prods = await getAllProducts();
-        const stockMap = {};
-        for (const p of prods) {
-            stockMap[p.id] = await p.currentStock();
-        }
+        const stockMap = await getStockLevels(prods);  // one query instead of one per product
         setProducts(prods);
         setStocks(stockMap);
     }
