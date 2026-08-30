@@ -135,10 +135,21 @@ const push = asyncHandler(async (req, res) => {
 
     const now = Date.now();
 
+    // WatermelonDB splits local writes into created / updated / deleted buckets.
+    // Every table below upserts (ON CONFLICT DO UPDATE) or safely no-ops
+    // (ON CONFLICT DO NOTHING), so a created row and an updated row take the
+    // exact same code path. We therefore process BOTH buckets together —
+    // otherwise updates (e.g. a customer's last_purchase_at, an edited product
+    // price) are silently discarded and never reach the server.
+    const upserts = (tableChanges) => [
+        ...(tableChanges?.created || []),
+        ...(tableChanges?.updated || []),
+    ];
+
     await withTransaction(async (client) => {
 
         // ── Products ─────────────────────────────────────────────────────────────
-        for (const p of (changes.products?.created || [])) {
+        for (const p of upserts(changes.products)) {
             await client.query(
                 `INSERT INTO products
            (id, business_id, name, category, barcode, brand, unit,
@@ -162,7 +173,7 @@ const push = asyncHandler(async (req, res) => {
         }
 
         // ── Stock batches ─────────────────────────────────────────────────────────
-        for (const b of (changes.stock_batches?.created || [])) {
+        for (const b of upserts(changes.stock_batches)) {
             await client.query(
                 `INSERT INTO stock_batches
            (id, product_id, quantity, batch_no, expiry_date, cost_price, sync_status, updated_at, created_at)
@@ -176,8 +187,8 @@ const push = asyncHandler(async (req, res) => {
             );
         }
 
-        // ── Stock transactions (append-only — never update) ───────────────────────
-        for (const t of (changes.stock_transactions?.created || [])) {
+        // ── Stock transactions (append-only — ON CONFLICT DO NOTHING) ─────────────
+        for (const t of upserts(changes.stock_transactions)) {
             await client.query(
                 `INSERT INTO stock_transactions
            (id, product_id, batch_id, type, quantity, txn_at, sync_status, updated_at)
@@ -189,7 +200,7 @@ const push = asyncHandler(async (req, res) => {
         }
 
         // ── Customers ─────────────────────────────────────────────────────────────
-        for (const c of (changes.customers?.created || [])) {
+        for (const c of upserts(changes.customers)) {
             await client.query(
                 `INSERT INTO customers
            (id, business_id, name, phone, segment, last_purchase_at, sync_status, updated_at)
@@ -206,7 +217,7 @@ const push = asyncHandler(async (req, res) => {
         }
 
         // ── Sale orders ───────────────────────────────────────────────────────────
-        for (const o of (changes.sale_orders?.created || [])) {
+        for (const o of upserts(changes.sale_orders)) {
             await client.query(
                 `INSERT INTO sale_orders
            (id, business_id, customer_id, total_amount, payment_mode, sale_at, sync_status, updated_at)
@@ -218,7 +229,7 @@ const push = asyncHandler(async (req, res) => {
         }
 
         // ── Sale items ────────────────────────────────────────────────────────────
-        for (const si of (changes.sale_items?.created || [])) {
+        for (const si of upserts(changes.sale_items)) {
             await client.query(
                 `INSERT INTO sale_items
            (id, order_id, product_id, batch_id, quantity, unit_price, updated_at)
@@ -228,6 +239,12 @@ const push = asyncHandler(async (req, res) => {
                 si.quantity, si.unit_price, si.updated_at ?? now]
             );
         }
+
+        // NOTE: the `deleted` bucket is intentionally not processed. The app has
+        // no hard-delete flows, and sales/transactions are immutable financial
+        // records. Deletions (e.g. deactivating a product) should be modelled as
+        // soft-deletes (an is_active flag synced via updated) rather than
+        // destructive DELETEs. Revisit here if/when a delete flow is added.
     });
 
     res.json({ success: true, synced_at: now });
