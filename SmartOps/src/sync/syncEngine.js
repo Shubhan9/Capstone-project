@@ -3,7 +3,7 @@ import NetInfo from '@react-native-community/netinfo';
 import database from '../database';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export const API_BASE = 'https://capstone-project-production-61cb.up.railway.app/api';
+export const API_BASE = 'https://smartops-app.duckdns.org/api';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Auth state — in-memory, set on login, cleared on logout
@@ -13,12 +13,16 @@ let _businessId = null;
 
 export async function setAuthToken(token) {
     _token = token;
-    await AsyncStorage.setItem('authToken', token);
+    // AsyncStorage.setItem throws on null/undefined — clear the key instead.
+    if (token == null) await AsyncStorage.removeItem('authToken');
+    else await AsyncStorage.setItem('authToken', token);
 }
 
 export async function setBusinessId(id) {
     _businessId = id;
-    await AsyncStorage.setItem('businessId', id);
+    // AsyncStorage.setItem throws on null/undefined — clear the key instead.
+    if (id == null) await AsyncStorage.removeItem('businessId');
+    else await AsyncStorage.setItem('businessId', id);
 }
 
 export function getAuthToken() { return _token; }
@@ -249,10 +253,10 @@ export async function logoutAndSync() {
     console.log('[sync] Final sync before logout...');
     await syncWithServer();
 
-    // Now safe to clear credentials
+    // Now safe to clear credentials (await so keys are gone before we return)
     if (_unsubscribe) { _unsubscribe(); _unsubscribe = null; }
-    setAuthToken(null);
-    setBusinessId(null);
+    await setAuthToken(null);
+    await setBusinessId(null);
 
     console.log('[sync] Logged out cleanly.');
 }

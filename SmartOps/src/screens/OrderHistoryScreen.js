@@ -197,7 +197,7 @@ export default function OrderHistoryScreen({ navigation }) {
                 )}
                 ListEmptyComponent={(
                     <EmptyState
-                        icon="OK"
+                        icon="🧾"
                         title="No orders found"
                         subtitle="Try a wider date range or complete a sale to see it here"
                     />

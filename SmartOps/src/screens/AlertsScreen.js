@@ -100,7 +100,7 @@ export default function AlertsScreen({ navigation }) {
 
                 {tab === 'expiry' && (
                     nearExpiry.length === 0
-                        ? <EmptyState icon="OK" title="No near-expiry items" subtitle="All tracked batches are within safe date range" />
+                        ? <EmptyState icon="✅" title="No near-expiry items" subtitle="All tracked batches are within safe date range" />
                         : nearExpiry
                             .sort((a, b) => a.batch.expiryDate - b.batch.expiryDate)
                             .map(({ batch, product, remainingQty }) => {
@@ -133,7 +133,7 @@ export default function AlertsScreen({ navigation }) {
 
                 {tab === 'stock' && (
                     lowStock.length === 0
-                        ? <EmptyState icon="OK" title="All products are stocked" subtitle="Nothing below reorder level" />
+                        ? <EmptyState icon="✅" title="All products are stocked" subtitle="Nothing below reorder level" />
                         : lowStock.map(({ product, stock }) => {
                             const color = stockColor(stock, product.reorderLevel);
                             return (
