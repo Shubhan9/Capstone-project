@@ -156,7 +156,7 @@ export default function OrderHistoryScreen({ navigation }) {
                         <View style={s.summaryCard}>
                             <View style={s.summaryLeft}>
                                 <Text style={s.summaryLabel}>VISIBLE TOTAL</Text>
-                                <Text style={s.summaryValue}>Rs.{visibleRevenue.toFixed(0)}</Text>
+                                <Text style={s.summaryValue}>₹{visibleRevenue.toFixed(0)}</Text>
                             </View>
                             <View style={s.summaryRight}>
                                 <Text style={s.summaryCount}>{visibleCount}</Text>
@@ -206,7 +206,7 @@ export default function OrderHistoryScreen({ navigation }) {
                     <View style={s.dateHeader}>
                         <Text style={s.dateLabel}>{section.title}</Text>
                         <Text style={s.dateSub}>
-                            Rs.{section.total.toFixed(0)} . {section.data.length} orders
+                            ₹{section.total.toFixed(0)} . {section.data.length} orders
                         </Text>
                     </View>
                 )}
@@ -220,7 +220,7 @@ export default function OrderHistoryScreen({ navigation }) {
                         <View style={s.orderMain}>
                             <View style={s.orderTop}>
                                 <Text style={s.orderId}>#{order.id.slice(-6).toUpperCase()}</Text>
-                                <Text style={s.orderAmount}>Rs.{order.totalAmount.toFixed(2)}</Text>
+                                <Text style={s.orderAmount}>₹{order.totalAmount.toFixed(2)}</Text>
                             </View>
                             <View style={s.orderBottom}>
                                 <Text style={s.orderTime}>{formatTime(order.saleAt)}</Text>
@@ -268,10 +268,10 @@ export default function OrderHistoryScreen({ navigation }) {
                                     <View key={item.id} style={s.itemRow}>
                                         <View style={{ flex: 1 }}>
                                             <Text style={s.itemName}>{item.productName}</Text>
-                                            <Text style={s.itemMeta}>Rs.{item.unitPrice} x {item.quantity}</Text>
+                                            <Text style={s.itemMeta}>₹{item.unitPrice} x {item.quantity}</Text>
                                         </View>
                                         <Text style={s.itemTotal}>
-                                            Rs.{(item.unitPrice * item.quantity).toFixed(2)}
+                                            ₹{(item.unitPrice * item.quantity).toFixed(2)}
                                         </Text>
                                     </View>
                                 ))}
@@ -280,7 +280,7 @@ export default function OrderHistoryScreen({ navigation }) {
 
                         <View style={s.modalTotal}>
                             <Text style={s.modalTotalLabel}>Total</Text>
-                            <Text style={s.modalTotalValue}>Rs.{selected?.totalAmount.toFixed(2)}</Text>
+                            <Text style={s.modalTotalValue}>₹{selected?.totalAmount.toFixed(2)}</Text>
                         </View>
                     </View>
                 </View>

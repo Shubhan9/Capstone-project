@@ -1,8 +1,9 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity,
     StyleSheet, RefreshControl, StatusBar, Alert
 } from 'react-native';
+import NetInfo from '@react-native-community/netinfo';
 import { useFocusEffect } from '@react-navigation/native';
 import { getLowStockProducts, getNearExpiryBatches, getTodaySales, getBatchQuantities, getOutstandingCustomers } from '../database/actions';
 import { SectionHeader } from '../../components/UI';
@@ -11,6 +12,17 @@ import { colors, spacing, radius, font } from '../theme';
 export default function HomeScreen({ navigation, onLogout, name }) {
     const [stats, setStats] = useState({ sales: 0, revenue: 0, lowStock: 0, expiry: 0, khataDue: 0, khataCount: 0 });
     const [refreshing, setRefreshing] = useState(false);
+    const [online, setOnline] = useState(true);
+
+    // Reflect real device connectivity in the status dot (was hardcoded green).
+    useEffect(() => {
+        const unsubscribe = NetInfo.addEventListener(state => {
+            // isInternetReachable can be null while probing — treat only an
+            // explicit false as offline so we don't flash "offline" on launch.
+            setOnline(state.isConnected !== false && state.isInternetReachable !== false);
+        });
+        return unsubscribe;
+    }, []);
 
     async function load() {
         const [lowStock, expiry, todaySales, outstanding] = await Promise.all([
@@ -56,6 +68,10 @@ export default function HomeScreen({ navigation, onLogout, name }) {
                     <View>
                         <Text style={s.greeting}>Good {getGreeting()} 👋</Text>
                         <Text style={s.shopName}>{name}</Text>
+                        <View style={s.statusRow}>
+                            <View style={[s.statusDot, { backgroundColor: online ? colors.teal : colors.textMuted }]} />
+                            <Text style={s.statusText}>{online ? 'Online · syncing' : 'Offline · saved on device'}</Text>
+                        </View>
                     </View>
                     <TouchableOpacity
                         style={s.profileAvatar}
@@ -68,7 +84,7 @@ export default function HomeScreen({ navigation, onLogout, name }) {
                         }}
                     >
                         <Text style={s.profileInitial}>{name.charAt(0).toUpperCase()}</Text>
-                        <View style={s.onlineDot} />
+                        <View style={[s.onlineDot, { backgroundColor: online ? colors.teal : colors.textMuted }]} />
                     </TouchableOpacity>
                 </View>
 
@@ -203,6 +219,9 @@ const s = StyleSheet.create({
         backgroundColor: colors.teal,
         borderWidth: 2, borderColor: colors.bg,
     },
+    statusRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
+    statusDot: { width: 7, height: 7, borderRadius: 4 },
+    statusText: { color: colors.textMuted, fontSize: font.xs, fontWeight: '600' },
 
     revenueCard: {
         backgroundColor: colors.bgCard,
