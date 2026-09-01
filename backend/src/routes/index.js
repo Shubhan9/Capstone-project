@@ -46,6 +46,7 @@ router.get('/analytics/inventory/stock-risk', analytics.stockRisk);
 router.get('/analytics/inventory/expiry-risk', analytics.expiryRisk);
 router.get('/analytics/inventory/dead-stock', analytics.deadStock);
 router.get('/analytics/inventory/opportunities', analytics.opportunities);
+router.get('/analytics/inventory/markdowns', analytics.markdownSuggestions);
 router.get('/analytics/inventory/intelligence', analytics.inventoryIntelligence);
 
 module.exports = router;

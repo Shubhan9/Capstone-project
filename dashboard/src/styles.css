@@ -169,6 +169,11 @@ button {
     gap: 16px;
 }
 
+/* Inventory tab has 6 KPIs — a balanced 3×2 reads better than 5+1. */
+.kpi-grid--inventory {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .dashboard-split {
     display: grid;
     grid-template-columns: 1.1fr 1fr;

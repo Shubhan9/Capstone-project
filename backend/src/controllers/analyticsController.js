@@ -188,6 +188,7 @@ const inventoryIntelligence = asyncHandler(async (req, res) => {
     const expiry = buildExpiryRiskPayload(batchStats, req.query);
     const dead = buildDeadStockPayload(productStats, req.query);
     const opportunity = buildOpportunityPayload(productStats, req.query);
+    const markdowns = buildMarkdownSuggestions(productStats, req.query);
 
     res.json({
         generated_at: Date.now(),
@@ -196,7 +197,14 @@ const inventoryIntelligence = asyncHandler(async (req, res) => {
         expiry_risk: expiry,
         dead_stock: dead,
         opportunities: opportunity,
+        markdowns,
     });
+});
+
+// GET /api/analytics/inventory/markdowns
+const markdownSuggestions = asyncHandler(async (req, res) => {
+    const productStats = await getProductInventoryStats(req.business.id);
+    res.json(buildMarkdownSuggestions(productStats, req.query));
 });
 
 async function getProductInventoryStats(businessId) {
@@ -574,6 +582,67 @@ function buildDeadStockPayload(productStats, queryParams = {}) {
     };
 }
 
+// Suggest a discount for slow/dead stock that STILL clears a minimum margin over
+// cost — so the shopkeeper moves stale inventory without ever selling at a loss.
+function buildMarkdownSuggestions(productStats, queryParams = {}) {
+    const limit = Math.min(parseInt(queryParams.limit, 10) || 20, 100);
+    const minMarginPct = Math.max(parseInt(queryParams.min_margin, 10) || 10, 0);
+    const daysWithoutSale = Math.max(parseInt(queryParams.days_without_sale, 10) || 30, 1);
+
+    let items = productStats.map(product => {
+        // Prefer batch-derived cost; fall back to average stock cost value.
+        const cost = product.estimated_cost_per_unit > 0
+            ? product.estimated_cost_per_unit
+            : (product.current_stock > 0 ? product.stock_cost_value / product.current_stock : 0);
+        const sellingPrice = product.selling_price;
+        const lastSaleAt = product.last_sale_at ? Number(product.last_sale_at) : null;
+        const daysSinceLastSale = lastSaleAt ? Math.floor((Date.now() - lastSaleAt) / DAY_MS) : null;
+        const status = getDeadStockStatus(product, daysSinceLastSale, daysWithoutSale);
+
+        if (product.current_stock <= 0) return null;      // nothing to clear
+        if (status === 'healthy') return null;             // only slow movers / dead stock
+        if (cost <= 0 || sellingPrice <= cost) return null; // no cost data, or already at/below cost
+
+        const floorPrice = cost * (1 + minMarginPct / 100);            // lowest still-profitable price
+        const targetDiscountPct = status === 'dead_stock' ? 25 : 15;   // push harder on dead stock
+        const suggestedPrice = Math.max(floorPrice, sellingPrice * (1 - targetDiscountPct / 100));
+        const discountPct = round(((sellingPrice - suggestedPrice) / sellingPrice) * 100);
+        if (discountPct < 1) return null;                  // no room to discount and stay profitable
+
+        const marginPctAfter = round(((suggestedPrice - cost) / suggestedPrice) * 100);
+
+        return {
+            product_id: product.id,
+            name: product.name,
+            category: product.category,
+            unit: product.unit,
+            current_stock: round(product.current_stock),
+            cost_per_unit: round(cost),
+            selling_price: round(sellingPrice),
+            suggested_price: round(suggestedPrice),
+            discount_pct: discountPct,
+            margin_pct_after: marginPctAfter,
+            status,
+            units_sold_30d: round(product.units_sold_30d),
+            days_since_last_sale: daysSinceLastSale,
+            blocked_cost_value: round(product.current_stock * cost),
+            recommended_action: `Discount to ₹${round(suggestedPrice)} (${discountPct}% off) — keeps ${marginPctAfter}% margin`,
+        };
+    }).filter(Boolean);
+
+    items.sort((a, b) => b.blocked_cost_value - a.blocked_cost_value);
+    items = items.slice(0, limit);
+
+    return {
+        summary: {
+            markdown_count: items.length,
+            blocked_cost_value: round(items.reduce((sum, item) => sum + item.blocked_cost_value, 0)),
+            potential_recovery_value: round(items.reduce((sum, item) => sum + item.current_stock * item.suggested_price, 0)),
+        },
+        items,
+    };
+}
+
 function buildOpportunityPayload(productStats, queryParams = {}) {
     const limit = Math.min(parseInt(queryParams.limit, 10) || 10, 50);
     const seasonal = queryParams.seasonal !== 'false';
@@ -869,5 +938,6 @@ module.exports = {
     expiryRisk,
     deadStock,
     opportunities,
+    markdownSuggestions,
     inventoryIntelligence,
 };
