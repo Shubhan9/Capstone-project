@@ -316,44 +316,18 @@ button {
 }
 
 .login-page {
-    position: relative;
     min-height: 100vh;
     display: grid;
     place-items: center;
     padding: 24px;
-    overflow: hidden;
-    background:
-        radial-gradient(1000px 640px at 50% 4%, rgba(29, 185, 122, 0.18), transparent 60%),
-        radial-gradient(760px 560px at 88% 104%, rgba(29, 185, 122, 0.08), transparent 55%),
-        var(--bg);
-}
-
-/* faint green grid across the whole page, fading toward the edges */
-.login-page::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background-image:
-        linear-gradient(rgba(29, 185, 122, 0.07) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(29, 185, 122, 0.07) 1px, transparent 1px);
-    background-size: 40px 40px;
-    -webkit-mask-image: radial-gradient(circle at 50% 34%, #000, transparent 82%);
-    mask-image: radial-gradient(circle at 50% 34%, #000, transparent 82%);
-    pointer-events: none;
+    background: var(--bg);
 }
 
 .login-card {
-    position: relative;
-    z-index: 1;
     width: 100%;
-    max-width: 400px;
+    max-width: 340px;
     display: grid;
     gap: 20px;
-    padding: 40px 32px;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 24px;
-    box-shadow: 0 30px 70px rgba(0, 0, 0, 0.45);
 }
 
 .login-brand {
@@ -417,7 +391,6 @@ button {
 .login-card input:focus {
     outline: none;
     border-color: var(--teal);
-    box-shadow: 0 0 0 3px rgba(29, 185, 122, 0.18);
 }
 
 .login-error {
