@@ -19,6 +19,7 @@ import InventoryScreen from './src/screens/InventoryScreen';
 import OrderHistoryScreen from './src/screens/OrderHistoryScreen';
 import KhataScreen from './src/screens/KhataScreen';
 import DaySummaryScreen from './src/screens/DaySummaryScreen';
+import ReorderScreen from './src/screens/ReorderScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -70,6 +71,7 @@ export default function App() {
           <Stack.Screen name="OrderHistory" component={OrderHistoryScreen} />
           <Stack.Screen name="Khata" component={KhataScreen} />
           <Stack.Screen name="DaySummary" component={DaySummaryScreen} />
+          <Stack.Screen name="Reorder" component={ReorderScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </DatabaseProvider>

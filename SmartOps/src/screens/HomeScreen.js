@@ -180,6 +180,12 @@ export default function HomeScreen({ navigation, onLogout, name }) {
                 </View>
 
                 {/* Tertiary Actions */}
+                <TouchableOpacity style={[s.tertiaryActionCard, { marginBottom: spacing.md }]} onPress={() => navigation.navigate('Reorder')} activeOpacity={0.75}>
+                    <Text style={s.tertiaryIcon}>🛒</Text>
+                    <Text style={s.tertiaryTitle}>Smart Restock</Text>
+                    <Text style={s.alertArrow}>›</Text>
+                </TouchableOpacity>
+
                 <TouchableOpacity style={[s.tertiaryActionCard, { marginBottom: spacing.md }]} onPress={() => navigation.navigate('Inventory')} activeOpacity={0.75}>
                     <Text style={s.tertiaryIcon}>📦</Text>
                     <Text style={s.tertiaryTitle}>View Full Inventory</Text>

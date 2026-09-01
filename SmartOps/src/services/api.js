@@ -51,4 +51,5 @@ export const AnalyticsAPI = {
     sales: (period) => apiFetch(`/analytics/sales?period=${period || 'daily'}`),
     topProducts: (limit) => apiFetch(`/analytics/top-products?limit=${limit || 10}`),
     customers: () => apiFetch('/analytics/customers'),
+    reorder: (limit) => apiFetch(`/analytics/inventory/reorder-suggestions?limit=${limit || 20}`),
 };
