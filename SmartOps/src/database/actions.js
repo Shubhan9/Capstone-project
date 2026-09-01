@@ -33,6 +33,23 @@ export async function registerProduct({
     return result;
 }
 
+export async function updateProduct({ productId, sellingPrice, reorderLevel }) {
+    const now = Date.now();
+
+    const result = await database.write(async () => {
+        const product = await database.get('products').find(productId);
+        return product.update(p => {
+            if (sellingPrice !== undefined) p.sellingPrice = sellingPrice;
+            if (reorderLevel !== undefined) p.reorderLevel = reorderLevel;
+            p.syncStatus = PENDING;
+            p.updatedAt = now;
+        });
+    });
+
+    syncAfterWrite();   // this write lands in the sync `updated` bucket
+    return result;
+}
+
 export async function getProductByBarcode(barcode) {
     if (!barcode) return null;
     const rows = await database.get('products')

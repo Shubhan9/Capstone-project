@@ -1,11 +1,12 @@
 import React, { useState, useCallback } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity,
-    StyleSheet, RefreshControl, TextInput,
+    StyleSheet, RefreshControl, TextInput, Modal, Alert,
+    KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { getAllProducts, getStockLevels } from '../database/actions';
-import { Badge, EmptyState } from '../../components/UI';
+import { getAllProducts, getStockLevels, updateProduct } from '../database/actions';
+import { Badge, EmptyState, PrimaryButton, GhostButton } from '../../components/UI';
 import { colors, spacing, radius, font } from '../theme';
 
 export default function InventoryScreen({ navigation }) {
@@ -14,6 +15,9 @@ export default function InventoryScreen({ navigation }) {
     const [search, setSearch] = useState('');
     const [filter, setFilter] = useState('all'); // 'all' | 'low' | 'out'
     const [refreshing, setRefreshing] = useState(false);
+    const [editing, setEditing] = useState(null);   // product being edited
+    const [editForm, setEditForm] = useState({ sellingPrice: '', reorderLevel: '' });
+    const [saving, setSaving] = useState(false);
 
     async function load() {
         const prods = await getAllProducts();
@@ -25,6 +29,33 @@ export default function InventoryScreen({ navigation }) {
     useFocusEffect(useCallback(() => { load(); }, []));
 
     async function onRefresh() { setRefreshing(true); await load(); setRefreshing(false); }
+
+    function openEdit(product) {
+        setEditForm({
+            sellingPrice: String(product.sellingPrice ?? ''),
+            reorderLevel: String(product.reorderLevel ?? ''),
+        });
+        setEditing(product);
+    }
+
+    async function saveEdit() {
+        const price = parseFloat(editForm.sellingPrice);
+        const reorder = parseInt(editForm.reorderLevel, 10);
+        if (isNaN(price) || price < 0) return Alert.alert('Invalid price', 'Enter a valid selling price.');
+        if (isNaN(reorder) || reorder < 0) return Alert.alert('Invalid reorder level', 'Enter a valid reorder level.');
+
+        setSaving(true);
+        try {
+            await updateProduct({ productId: editing.id, sellingPrice: price, reorderLevel: reorder });
+            setEditing(null);
+            await load();
+        } catch (e) {
+            Alert.alert('Error', 'Could not save changes. Please try again.');
+            console.error(e);
+        } finally {
+            setSaving(false);
+        }
+    }
 
     const filtered = products.filter(p => {
         const matchSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -125,7 +156,7 @@ export default function InventoryScreen({ navigation }) {
                                 key={p.id}
                                 style={s.productRow}
                                 activeOpacity={0.75}
-                                onPress={() => navigation.navigate('StockIn')}
+                                onPress={() => openEdit(p)}
                             >
                                 <View style={s.productLeft}>
                                     <View style={[s.categoryDot, { backgroundColor: categoryColor(p.category) }]} />
@@ -152,6 +183,60 @@ export default function InventoryScreen({ navigation }) {
             <TouchableOpacity style={s.fab} onPress={() => navigation.navigate('StockIn')} activeOpacity={0.85}>
                 <Text style={s.fabText}>+ Stock In</Text>
             </TouchableOpacity>
+
+            {/* Product edit modal */}
+            <Modal visible={!!editing} transparent animationType="slide" onRequestClose={() => setEditing(null)}>
+                <KeyboardAvoidingView
+                    style={s.modalOverlay}
+                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                >
+                    <View style={s.modalBox}>
+                        <View style={s.modalHeader}>
+                            <View style={{ flex: 1 }}>
+                                <Text style={s.modalTitle} numberOfLines={1}>{editing?.name}</Text>
+                                <Text style={s.modalSub}>
+                                    {editing?.brand ? `${editing.brand} · ` : ''}{editing?.category} · in stock: {stocks[editing?.id] ?? 0} {editing?.unit}
+                                </Text>
+                            </View>
+                            <TouchableOpacity onPress={() => setEditing(null)}>
+                                <Text style={s.modalClose}>✕</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <Text style={s.inputLabel}>SELLING PRICE (₹)</Text>
+                        <TextInput
+                            style={s.modalInput}
+                            keyboardType="decimal-pad"
+                            value={editForm.sellingPrice}
+                            onChangeText={v => setEditForm(f => ({ ...f, sellingPrice: v }))}
+                            placeholder="0.00"
+                            placeholderTextColor={colors.textMuted}
+                        />
+
+                        <Text style={s.inputLabel}>REORDER LEVEL ({editing?.unit})</Text>
+                        <TextInput
+                            style={s.modalInput}
+                            keyboardType="numeric"
+                            value={editForm.reorderLevel}
+                            onChangeText={v => setEditForm(f => ({ ...f, reorderLevel: v }))}
+                            placeholder="5"
+                            placeholderTextColor={colors.textMuted}
+                        />
+
+                        <PrimaryButton
+                            label="Save changes"
+                            onPress={saveEdit}
+                            loading={saving}
+                            style={{ marginTop: spacing.lg }}
+                        />
+                        <GhostButton
+                            label="Add stock for this product"
+                            onPress={() => { setEditing(null); navigation.navigate('StockIn'); }}
+                            style={{ marginTop: spacing.sm }}
+                        />
+                    </View>
+                </KeyboardAvoidingView>
+            </Modal>
         </View>
     );
 }
@@ -228,4 +313,26 @@ const s = StyleSheet.create({
         paddingHorizontal: spacing.xl, paddingVertical: 14,
     },
     fabText: { color: colors.bg, fontSize: font.md, fontWeight: '700' },
+
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' },
+    modalBox: {
+        backgroundColor: colors.bgCard,
+        borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl,
+        borderWidth: 1, borderColor: colors.border,
+        padding: spacing.xl, paddingBottom: 40,
+    },
+    modalHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: spacing.lg },
+    modalTitle: { color: colors.textPrimary, fontSize: font.xl, fontWeight: '700' },
+    modalSub: { color: colors.textMuted, fontSize: font.sm, marginTop: 2 },
+    modalClose: { color: colors.textMuted, fontSize: font.lg, padding: 4 },
+    inputLabel: {
+        color: colors.textMuted, fontSize: font.xs, fontWeight: '700', letterSpacing: 1,
+        marginBottom: spacing.xs, marginTop: spacing.md,
+    },
+    modalInput: {
+        backgroundColor: colors.bgInput,
+        borderRadius: radius.md, borderWidth: 1, borderColor: colors.border,
+        color: colors.textPrimary, fontSize: font.md,
+        paddingHorizontal: spacing.md, paddingVertical: 13,
+    },
 });
