@@ -3,12 +3,14 @@ import LokiJSAdapter from '@nozbe/watermelondb/adapters/lokijs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setGenerator } from '@nozbe/watermelondb/utils/common/randomId';
 import schema from './schema';
+import migrations from './migrations';
 import Product from '../models/Product';
 import StockBatch from '../models/StockBatch';
 import StockTransaction from '../models/StockTransaction';
 import SaleOrder from '../models/SaleOrder';
 import SaleItem from '../models/SaleItem';
 import Customer from '../models/Customer';
+import LedgerEntry from '../models/LedgerEntry';
 
 function uuidv4() {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
@@ -40,6 +42,7 @@ const lokiStorageAdapter = {
 
 const adapter = new LokiJSAdapter({
     schema,
+    migrations,
     useWebWorker: false,
     useIncrementalIndexedDB: false,
     dbName: 'bizops',
@@ -52,8 +55,8 @@ const adapter = new LokiJSAdapter({
 
 const database = new Database({
     adapter,
-    modelClasses: [Product, StockBatch, StockTransaction, SaleOrder, SaleItem, Customer],
+    modelClasses: [Product, StockBatch, StockTransaction, SaleOrder, SaleItem, Customer, LedgerEntry],
 });
 
 export default database;
-export { Product, StockBatch, StockTransaction, SaleOrder, SaleItem, Customer };
+export { Product, StockBatch, StockTransaction, SaleOrder, SaleItem, Customer, LedgerEntry };

@@ -1,7 +1,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export default appSchema({
-    version: 2,
+    version: 3,
     tables: [
 
         tableSchema({
@@ -81,6 +81,21 @@ export default appSchema({
                 { name: 'phone', type: 'string', isIndexed: true },
                 { name: 'segment', type: 'string' },
                 { name: 'last_purchase_at', type: 'number' },
+                { name: 'sync_status', type: 'string' },
+                { name: 'updated_at', type: 'number' },
+            ],
+        }),
+
+        tableSchema({
+            name: 'ledger_entries',
+            columns: [
+                { name: 'business_id', type: 'string', isIndexed: true },
+                { name: 'customer_id', type: 'string', isIndexed: true },
+                { name: 'order_id', type: 'string', isOptional: true },
+                { name: 'type', type: 'string' },        // 'credit_sale' | 'repayment'
+                { name: 'amount', type: 'number' },
+                { name: 'note', type: 'string', isOptional: true },
+                { name: 'entry_at', type: 'number' },
                 { name: 'sync_status', type: 'string' },
                 { name: 'updated_at', type: 'number' },
             ],

@@ -12,7 +12,7 @@ const pull = asyncHandler(async (req, res) => {
     const since = parseInt(req.query.last_pulled_at) || 0;
     const now = Date.now();
 
-    const [products, batches, transactions, orders, items, customers] = await Promise.all([
+    const [products, batches, transactions, orders, items, customers, ledger] = await Promise.all([
 
         query(
             `SELECT id, business_id, name, category, barcode, brand, unit,
@@ -84,6 +84,18 @@ const pull = asyncHandler(async (req, res) => {
          WHERE business_id = $1 AND updated_at > $2`,
             [businessId, since]
         ),
+
+        query(
+            `SELECT id, business_id, customer_id, order_id, type,
+          amount::FLOAT         AS amount,
+          note,
+          entry_at::FLOAT       AS entry_at,
+          sync_status,
+          updated_at::FLOAT     AS updated_at
+         FROM ledger_entries
+         WHERE business_id = $1 AND updated_at > $2`,
+            [businessId, since]
+        ),
     ]);
 
     res.json({
@@ -95,6 +107,7 @@ const pull = asyncHandler(async (req, res) => {
             sale_orders: { created: orders.rows, updated: [], deleted: [] },
             sale_items: { created: items.rows, updated: [], deleted: [] },
             customers: { created: customers.rows, updated: [], deleted: [] },
+            ledger_entries: { created: ledger.rows, updated: [], deleted: [] },
         },
     });
 });
@@ -216,6 +229,18 @@ const push = asyncHandler(async (req, res) => {
          ON CONFLICT (id) DO NOTHING`,
                 [si.id, si.order_id, si.product_id, si.batch_id || null,
                 si.quantity, si.unit_price, si.updated_at ?? now]
+            );
+        }
+
+        // ── Ledger entries (khata — append-only, immutable) ───────────────────────
+        for (const e of upserts(changes.ledger_entries)) {
+            await client.query(
+                `INSERT INTO ledger_entries
+           (id, business_id, customer_id, order_id, type, amount, note, entry_at, sync_status, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'synced',$9)
+         ON CONFLICT (id) DO NOTHING`,   // a ledger entry is never edited after it's written
+                [e.id, businessId, e.customer_id, e.order_id || null,
+                e.type, e.amount, e.note || null, e.entry_at, e.updated_at ?? now]
             );
         }
 

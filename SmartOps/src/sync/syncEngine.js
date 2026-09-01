@@ -113,6 +113,10 @@ function normalizePullChanges(changes) {
         customers: normalizeTableChanges(changes.customers, {
             timestampFields: ['last_purchase_at', 'updated_at'],
         }),
+        ledger_entries: normalizeTableChanges(changes.ledger_entries, {
+            numberFields: ['amount'],
+            timestampFields: ['entry_at', 'updated_at'],
+        }),
     };
 }
 
