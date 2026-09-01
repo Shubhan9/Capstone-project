@@ -1,10 +1,10 @@
 import React, { useState, useCallback } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity,
-    StyleSheet, RefreshControl,
+    StyleSheet, RefreshControl, Alert,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { getLowStockProducts, getNearExpiryBatches, getBatchQuantities, getProductsByIds } from '../database/actions';
+import { getLowStockProducts, getNearExpiryBatches, getBatchQuantities, getProductsByIds, recordWastage } from '../database/actions';
 import { Card, Badge, EmptyState } from '../../components/UI';
 import { colors, spacing, radius, font } from '../theme';
 
@@ -41,6 +41,29 @@ export default function AlertsScreen({ navigation }) {
     useFocusEffect(useCallback(() => { load(); }, []));
 
     async function onRefresh() { setRefreshing(true); await load(); setRefreshing(false); }
+
+    function confirmWastage(batch, product, remainingQty) {
+        Alert.alert(
+            'Mark as wasted?',
+            `Write off ${remainingQty} ${product.unit || 'units'} of ${product.name} (batch ${batch.batchNo}). This removes them from stock and can't be undone.`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Mark wasted',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            await recordWastage({ productId: product.id, batchId: batch.id, quantity: remainingQty });
+                            await load();
+                        } catch (e) {
+                            Alert.alert('Error', 'Could not record wastage. Please try again.');
+                            console.error(e);
+                        }
+                    },
+                },
+            ]
+        );
+    }
 
     function expiryColor(days) {
         if (days < 0) return colors.red;
@@ -124,14 +147,20 @@ export default function AlertsScreen({ navigation }) {
                                                 color={color}
                                             />
                                         </View>
-                                        <TouchableOpacity
-                                            style={[s.actionHint, { borderColor: color + '40' }]}
-                                            onPress={() => navigation.navigate('NewOrder')}
-                                        >
-                                            <Text style={[s.actionHintText, { color }]}>
-                                                {days < 0 ? 'Go review batch / mark wastage' : 'Create discounted order to clear'}
-                                            </Text>
-                                        </TouchableOpacity>
+                                        <View style={s.actionRow}>
+                                            <TouchableOpacity
+                                                style={[s.actionBtn, { borderColor: color + '40' }]}
+                                                onPress={() => navigation.navigate('NewOrder')}
+                                            >
+                                                <Text style={[s.actionBtnText, { color }]}>Sell to clear</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                style={[s.actionBtn, { borderColor: colors.red + '40' }]}
+                                                onPress={() => confirmWastage(batch, product, remainingQty)}
+                                            >
+                                                <Text style={[s.actionBtnText, { color: colors.red }]}>Mark wasted</Text>
+                                            </TouchableOpacity>
+                                        </View>
                                     </Card>
                                 );
                             })
@@ -218,4 +247,13 @@ const s = StyleSheet.create({
         alignSelf: 'flex-start',
     },
     actionHintText: { fontSize: font.sm, fontWeight: '600' },
+
+    actionRow: { flexDirection: 'row', gap: spacing.sm },
+    actionBtn: {
+        flex: 1,
+        borderRadius: radius.sm, borderWidth: 1,
+        paddingVertical: spacing.xs + 3, paddingHorizontal: spacing.sm,
+        alignItems: 'center',
+    },
+    actionBtnText: { fontSize: font.sm, fontWeight: '700' },
 });

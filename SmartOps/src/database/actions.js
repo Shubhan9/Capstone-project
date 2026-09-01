@@ -82,6 +82,30 @@ export async function recordStockIn({ productId, quantity, batchNo, expiryDate, 
     return result;
 }
 
+// ── Wastage / write-off ─────────────────────────────────────────────────────────
+// Records a 'wastage' transaction against a batch. Because stock is derived from
+// the transaction ledger (stock_in/return add, everything else subtracts), this
+// immediately removes the written-off units from available stock — no separate
+// stock column to keep in sync.
+export async function recordWastage({ productId, batchId, quantity }) {
+    const now = Date.now();
+
+    const result = await database.write(async () => {
+        return database.get('stock_transactions').create(t => {
+            t.productId = productId;
+            t.batchId = batchId;
+            t.type = 'wastage';
+            t.quantity = quantity;
+            t.txnAt = now;
+            t.syncStatus = PENDING;
+            t.updatedAt = now;
+        });
+    });
+
+    syncAfterWrite();
+    return result;
+}
+
 // ── Sales ─────────────────────────────────────────────────────────────────────
 
 export async function recordSale({ customerId, items, paymentMode }) {
