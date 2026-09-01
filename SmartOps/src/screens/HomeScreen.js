@@ -4,19 +4,20 @@ import {
     StyleSheet, RefreshControl, StatusBar, Alert
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { getLowStockProducts, getNearExpiryBatches, getTodaySales, getBatchQuantities } from '../database/actions';
+import { getLowStockProducts, getNearExpiryBatches, getTodaySales, getBatchQuantities, getOutstandingCustomers } from '../database/actions';
 import { SectionHeader } from '../../components/UI';
 import { colors, spacing, radius, font } from '../theme';
 
 export default function HomeScreen({ navigation, onLogout, name }) {
-    const [stats, setStats] = useState({ sales: 0, revenue: 0, lowStock: 0, expiry: 0 });
+    const [stats, setStats] = useState({ sales: 0, revenue: 0, lowStock: 0, expiry: 0, khataDue: 0, khataCount: 0 });
     const [refreshing, setRefreshing] = useState(false);
 
     async function load() {
-        const [lowStock, expiry, todaySales] = await Promise.all([
+        const [lowStock, expiry, todaySales, outstanding] = await Promise.all([
             getLowStockProducts(),
             getNearExpiryBatches(7),
             getTodaySales(),
+            getOutstandingCustomers(),
         ]);
 
         // Count near-expiry batches that still have stock left — one query, not one per batch.
@@ -28,6 +29,8 @@ export default function HomeScreen({ navigation, onLogout, name }) {
             expiry: actionableExpiry.length,
             sales: todaySales.count,
             revenue: todaySales.total,
+            khataDue: outstanding.reduce((sum, row) => sum + row.balance, 0),
+            khataCount: outstanding.length,
         });
     }
 
@@ -144,6 +147,18 @@ export default function HomeScreen({ navigation, onLogout, name }) {
                     <Text style={s.tertiaryIcon}>📦</Text>
                     <Text style={s.tertiaryTitle}>View Full Inventory</Text>
                     <Text style={s.alertArrow}>›</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={[s.tertiaryActionCard, { marginBottom: spacing.md }]} onPress={() => navigation.navigate('Khata')} activeOpacity={0.75}>
+                    <Text style={s.tertiaryIcon}>📒</Text>
+                    <Text style={s.tertiaryTitle}>Khata · Credit</Text>
+                    {stats.khataDue > 0 ? (
+                        <View style={s.khataDueBadge}>
+                            <Text style={s.khataDueText}>₹{stats.khataDue.toFixed(0)} due</Text>
+                        </View>
+                    ) : (
+                        <Text style={s.alertArrow}>›</Text>
+                    )}
                 </TouchableOpacity>
 
                 <TouchableOpacity style={s.tertiaryActionCard} onPress={() => navigation.navigate('OrderHistory')} activeOpacity={0.75}>
@@ -277,4 +292,11 @@ const s = StyleSheet.create({
     },
     tertiaryIcon: { fontSize: 22, marginRight: spacing.md },
     tertiaryTitle: { flex: 1, color: colors.textPrimary, fontSize: font.md, fontWeight: '600' },
+    khataDueBadge: {
+        backgroundColor: colors.amber + '20',
+        borderWidth: 1, borderColor: colors.amber + '40',
+        borderRadius: radius.full,
+        paddingHorizontal: spacing.md, paddingVertical: 4,
+    },
+    khataDueText: { color: colors.amber, fontSize: font.xs, fontWeight: '700' },
 });

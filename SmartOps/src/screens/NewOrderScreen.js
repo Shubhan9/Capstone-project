@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity,
     TextInput, StyleSheet, Alert, Modal, KeyboardAvoidingView, Platform,
 } from 'react-native';
-import { getProductByBarcode, recordSale, upsertCustomer } from '../database/actions';
+import { getProductByBarcode, recordSale, upsertCustomer, getCustomerByPhone, getCustomerBalance } from '../database/actions';
 import BarcodeScanner from '../../components/BarcodeScanner';
 import { Card, PrimaryButton, GhostButton, Divider, EmptyState } from '../../components/UI';
 import { colors, spacing, radius, font } from '../theme';
@@ -16,6 +16,22 @@ export default function NewOrderScreen({ navigation }) {
     const [loading, setLoading] = useState(false);
     const [notFoundBarcode, setNotFoundBarcode] = useState(null);  // triggers "add product?" prompt
     const [draftPriceItem, setDraftPriceItem] = useState(null);    // triggers "set price" prompt for legacy test data
+    const [existingBalance, setExistingBalance] = useState(null);  // current khata balance for entered phone
+
+    // Look up the customer's current khata balance once a full phone is entered.
+    useEffect(() => {
+        let active = true;
+        (async () => {
+            const phone = customerPhone.trim();
+            if (phone.length < 10) { setExistingBalance(null); return; }
+            const customer = await getCustomerByPhone(phone);
+            if (!active) return;
+            if (!customer) { setExistingBalance(null); return; }
+            const balance = await getCustomerBalance(customer.id);
+            if (active) setExistingBalance(balance);
+        })();
+        return () => { active = false; };
+    }, [customerPhone]);
 
     // ── Barcode scanned ────────────────────────────────────────────────────────
     async function handleScan(barcode) {
@@ -95,6 +111,15 @@ export default function NewOrderScreen({ navigation }) {
     // ── Checkout ───────────────────────────────────────────────────────────────
     async function handleCheckout() {
         if (cart.length === 0) return;
+
+        // Credit sales must be attributed to a customer so the khata balance can be tracked.
+        if (paymentMode === 'credit' && customerPhone.trim().length < 10) {
+            return Alert.alert(
+                'Customer required for credit',
+                'A khata (credit) sale needs a customer phone number so you can track what they owe.'
+            );
+        }
+
         setLoading(true);
 
         try {
@@ -205,8 +230,10 @@ export default function NewOrderScreen({ navigation }) {
 
                         <Divider />
 
-                        {/* Customer phone (optional) */}
-                        <Text style={s.sectionLabel}>CUSTOMER  ·  OPTIONAL</Text>
+                        {/* Customer phone (required for credit) */}
+                        <Text style={s.sectionLabel}>
+                            CUSTOMER  ·  {paymentMode === 'credit' ? 'REQUIRED FOR CREDIT' : 'OPTIONAL'}
+                        </Text>
                         <TextInput
                             style={s.input}
                             placeholder="Phone number"
@@ -216,6 +243,11 @@ export default function NewOrderScreen({ navigation }) {
                             onChangeText={setCustomerPhone}
                             maxLength={10}
                         />
+                        {existingBalance !== null && existingBalance > 0 && (
+                            <Text style={s.balanceHint}>
+                                📒 Existing khata balance: ₹{existingBalance.toFixed(2)}
+                            </Text>
+                        )}
 
                         {/* Payment mode */}
                         <Text style={s.sectionLabel}>PAYMENT</Text>
@@ -373,6 +405,11 @@ const s = StyleSheet.create({
         color: colors.textPrimary,
         fontSize: font.md, padding: spacing.md,
         marginBottom: spacing.lg,
+    },
+
+    balanceHint: {
+        color: colors.amber, fontSize: font.sm, fontWeight: '600',
+        marginTop: -spacing.md, marginBottom: spacing.lg,
     },
 
     paymentRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.xl },

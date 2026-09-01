@@ -250,6 +250,24 @@ export async function getOutstandingCustomers() {
         .sort((a, b) => b.balance - a.balance);
 }
 
+export async function getCustomerByPhone(phone) {
+    const bId = getBusinessId();
+    if (!phone) return null;
+    const rows = await database.get('customers')
+        .query(Q.where('phone', phone), Q.where('business_id', bId))
+        .fetch();
+    return rows[0] ?? null;
+}
+
+// Full ledger history for one customer (newest first) plus the derived balance.
+export async function getCustomerLedger(customerId) {
+    const entries = await database.get('ledger_entries')
+        .query(Q.where('customer_id', customerId), Q.sortBy('entry_at', Q.desc))
+        .fetch();
+    const balance = entries.reduce((bal, e) => bal + e.signedAmount, 0);
+    return { entries, balance };
+}
+
 // ── Analytics ─────────────────────────────────────────────────────────────────
 
 // Signed quantity for a transaction: stock_in/return add, everything else subtracts.

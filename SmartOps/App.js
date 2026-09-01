@@ -17,6 +17,7 @@ import ProductRegistrationScreen from './src/screens/ProductRegistrationScreen';
 import AlertsScreen from './src/screens/AlertsScreen';
 import InventoryScreen from './src/screens/InventoryScreen';
 import OrderHistoryScreen from './src/screens/OrderHistoryScreen';
+import KhataScreen from './src/screens/KhataScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -66,6 +67,7 @@ export default function App() {
           <Stack.Screen name="Alerts" component={AlertsScreen} />
           <Stack.Screen name="Inventory" component={InventoryScreen} />
           <Stack.Screen name="OrderHistory" component={OrderHistoryScreen} />
+          <Stack.Screen name="Khata" component={KhataScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </DatabaseProvider>
