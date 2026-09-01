@@ -17,6 +17,7 @@ export default function NewOrderScreen({ navigation }) {
     const [notFoundBarcode, setNotFoundBarcode] = useState(null);  // triggers "add product?" prompt
     const [draftPriceItem, setDraftPriceItem] = useState(null);    // triggers "set price" prompt for legacy test data
     const [existingBalance, setExistingBalance] = useState(null);  // current khata balance for entered phone
+    const [priceEdit, setPriceEdit] = useState(null);              // { index, value } — discount / price override
 
     // Look up the customer's current khata balance once a full phone is entered.
     useEffect(() => {
@@ -106,6 +107,22 @@ export default function NewOrderScreen({ navigation }) {
 
     function removeItem(index) {
         setCart(prev => prev.filter((_, i) => i !== index));
+    }
+
+    // ── Price override / discount ────────────────────────────────────────────────
+    function openPriceEdit(index) {
+        setPriceEdit({ index, value: String(cart[index].unitPrice) });
+    }
+
+    function savePriceEdit() {
+        const p = parseFloat(priceEdit.value);
+        if (isNaN(p) || p < 0) return Alert.alert('Invalid price', 'Enter a valid price.');
+        setCart(prev => {
+            const updated = [...prev];
+            updated[priceEdit.index] = { ...updated[priceEdit.index], unitPrice: p };
+            return updated;
+        });
+        setPriceEdit(null);
     }
 
     // ── Checkout ───────────────────────────────────────────────────────────────
@@ -207,7 +224,11 @@ export default function NewOrderScreen({ navigation }) {
                                 <View style={s.cartItemTop}>
                                     <View style={s.cartItemInfo}>
                                         <Text style={s.cartItemName}>{item.product.name}</Text>
-                                        <Text style={s.cartItemSub}>{item.product.category} · ₹{item.unitPrice} each</Text>
+                                        <TouchableOpacity onPress={() => openPriceEdit(i)} activeOpacity={0.7}>
+                                            <Text style={s.cartItemSub}>
+                                                {item.product.category} · ₹{item.unitPrice} each · <Text style={s.editPriceLink}>edit price</Text>
+                                            </Text>
+                                        </TouchableOpacity>
                                     </View>
                                     <TouchableOpacity onPress={() => removeItem(i)} style={s.removeBtn}>
                                         <Text style={s.removeText}>✕</Text>
@@ -339,6 +360,37 @@ export default function NewOrderScreen({ navigation }) {
                     </View>
                 </View>
             </Modal>
+
+            {/* Price override / discount modal */}
+            <Modal visible={priceEdit !== null} transparent animationType="slide" onRequestClose={() => setPriceEdit(null)}>
+                <View style={s.modalOverlay}>
+                    <View style={s.modalBox}>
+                        <Text style={s.modalTitle}>Edit price</Text>
+                        <Text style={s.modalText}>
+                            Set the selling price for{' '}
+                            <Text style={{ fontWeight: '700', color: colors.teal }}>
+                                {priceEdit !== null ? cart[priceEdit.index]?.product?.name : ''}
+                            </Text>
+                            {' '}— e.g. a discount to clear near-expiry stock.
+                        </Text>
+                        <TextInput
+                            style={[s.input, { marginTop: spacing.lg, fontSize: font.xxl, paddingVertical: spacing.lg, textAlign: 'center' }]}
+                            placeholder="₹0.00"
+                            placeholderTextColor={colors.textMuted}
+                            keyboardType="decimal-pad"
+                            autoFocus
+                            value={priceEdit?.value ?? ''}
+                            onChangeText={v => setPriceEdit(prev => ({ ...prev, value: v }))}
+                        />
+                        <PrimaryButton label="Save price" onPress={savePriceEdit} />
+                        <GhostButton
+                            label="Cancel"
+                            onPress={() => setPriceEdit(null)}
+                            style={{ marginTop: spacing.sm }}
+                        />
+                    </View>
+                </View>
+            </Modal>
         </KeyboardAvoidingView>
     );
 }
@@ -383,6 +435,7 @@ const s = StyleSheet.create({
     cartItemInfo: { flex: 1 },
     cartItemName: { color: colors.textPrimary, fontSize: font.md, fontWeight: '600', marginBottom: 2 },
     cartItemSub: { color: colors.textMuted, fontSize: font.sm },
+    editPriceLink: { color: colors.teal, fontWeight: '600' },
     removeBtn: { padding: spacing.xs },
     removeText: { color: colors.red, fontSize: font.md, fontWeight: '600' },
     cartItemBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
