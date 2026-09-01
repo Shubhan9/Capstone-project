@@ -1,22 +1,35 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity,
     StyleSheet, RefreshControl, StatusBar, Alert
 } from 'react-native';
+import NetInfo from '@react-native-community/netinfo';
 import { useFocusEffect } from '@react-navigation/native';
-import { getLowStockProducts, getNearExpiryBatches, getTodaySales, getBatchQuantities } from '../database/actions';
+import { getLowStockProducts, getNearExpiryBatches, getTodaySales, getBatchQuantities, getOutstandingCustomers } from '../database/actions';
 import { SectionHeader } from '../../components/UI';
 import { colors, spacing, radius, font } from '../theme';
 
 export default function HomeScreen({ navigation, onLogout, name }) {
-    const [stats, setStats] = useState({ sales: 0, revenue: 0, lowStock: 0, expiry: 0 });
+    const [stats, setStats] = useState({ sales: 0, revenue: 0, lowStock: 0, expiry: 0, khataDue: 0, khataCount: 0 });
     const [refreshing, setRefreshing] = useState(false);
+    const [online, setOnline] = useState(true);
+
+    // Reflect real device connectivity in the status dot (was hardcoded green).
+    useEffect(() => {
+        const unsubscribe = NetInfo.addEventListener(state => {
+            // isInternetReachable can be null while probing — treat only an
+            // explicit false as offline so we don't flash "offline" on launch.
+            setOnline(state.isConnected !== false && state.isInternetReachable !== false);
+        });
+        return unsubscribe;
+    }, []);
 
     async function load() {
-        const [lowStock, expiry, todaySales] = await Promise.all([
+        const [lowStock, expiry, todaySales, outstanding] = await Promise.all([
             getLowStockProducts(),
             getNearExpiryBatches(7),
             getTodaySales(),
+            getOutstandingCustomers(),
         ]);
 
         // Count near-expiry batches that still have stock left — one query, not one per batch.
@@ -28,6 +41,8 @@ export default function HomeScreen({ navigation, onLogout, name }) {
             expiry: actionableExpiry.length,
             sales: todaySales.count,
             revenue: todaySales.total,
+            khataDue: outstanding.reduce((sum, row) => sum + row.balance, 0),
+            khataCount: outstanding.length,
         });
     }
 
@@ -53,6 +68,10 @@ export default function HomeScreen({ navigation, onLogout, name }) {
                     <View>
                         <Text style={s.greeting}>Good {getGreeting()} 👋</Text>
                         <Text style={s.shopName}>{name}</Text>
+                        <View style={s.statusRow}>
+                            <View style={[s.statusDot, { backgroundColor: online ? colors.teal : colors.textMuted }]} />
+                            <Text style={s.statusText}>{online ? 'Online · syncing' : 'Offline · saved on device'}</Text>
+                        </View>
                     </View>
                     <TouchableOpacity
                         style={s.profileAvatar}
@@ -65,7 +84,7 @@ export default function HomeScreen({ navigation, onLogout, name }) {
                         }}
                     >
                         <Text style={s.profileInitial}>{name.charAt(0).toUpperCase()}</Text>
-                        <View style={s.onlineDot} />
+                        <View style={[s.onlineDot, { backgroundColor: online ? colors.teal : colors.textMuted }]} />
                     </TouchableOpacity>
                 </View>
 
@@ -146,6 +165,18 @@ export default function HomeScreen({ navigation, onLogout, name }) {
                     <Text style={s.alertArrow}>›</Text>
                 </TouchableOpacity>
 
+                <TouchableOpacity style={[s.tertiaryActionCard, { marginBottom: spacing.md }]} onPress={() => navigation.navigate('Khata')} activeOpacity={0.75}>
+                    <Text style={s.tertiaryIcon}>📒</Text>
+                    <Text style={s.tertiaryTitle}>Khata · Credit</Text>
+                    {stats.khataDue > 0 ? (
+                        <View style={s.khataDueBadge}>
+                            <Text style={s.khataDueText}>₹{stats.khataDue.toFixed(0)} due</Text>
+                        </View>
+                    ) : (
+                        <Text style={s.alertArrow}>›</Text>
+                    )}
+                </TouchableOpacity>
+
                 <TouchableOpacity style={s.tertiaryActionCard} onPress={() => navigation.navigate('OrderHistory')} activeOpacity={0.75}>
                     <Text style={s.tertiaryIcon}>🧾</Text>
                     <Text style={s.tertiaryTitle}>View Order History</Text>
@@ -188,6 +219,9 @@ const s = StyleSheet.create({
         backgroundColor: colors.teal,
         borderWidth: 2, borderColor: colors.bg,
     },
+    statusRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
+    statusDot: { width: 7, height: 7, borderRadius: 4 },
+    statusText: { color: colors.textMuted, fontSize: font.xs, fontWeight: '600' },
 
     revenueCard: {
         backgroundColor: colors.bgCard,
@@ -277,4 +311,11 @@ const s = StyleSheet.create({
     },
     tertiaryIcon: { fontSize: 22, marginRight: spacing.md },
     tertiaryTitle: { flex: 1, color: colors.textPrimary, fontSize: font.md, fontWeight: '600' },
+    khataDueBadge: {
+        backgroundColor: colors.amber + '20',
+        borderWidth: 1, borderColor: colors.amber + '40',
+        borderRadius: radius.full,
+        paddingHorizontal: spacing.md, paddingVertical: 4,
+    },
+    khataDueText: { color: colors.amber, fontSize: font.xs, fontWeight: '700' },
 });

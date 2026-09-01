@@ -124,6 +124,25 @@ const migrations = [
 )`,
     `CREATE INDEX IF NOT EXISTS idx_catalog_name ON barcode_catalog USING gin(to_tsvector('english', coalesce(name,'')))`,
 
+    // ── 009: ledger_entries (khata / customer credit ledger — append-only) ────────
+    // Append-only double-entry-style ledger. A customer's outstanding balance is
+    // DERIVED as SUM(credit_sale) - SUM(repayment); there is no balance column.
+    `CREATE TABLE IF NOT EXISTS ledger_entries (
+  id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  business_id  UUID        NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  customer_id  UUID        NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+  order_id     UUID        REFERENCES sale_orders(id) ON DELETE SET NULL,
+  type         TEXT        NOT NULL CHECK (type IN ('credit_sale','repayment')),
+  amount       NUMERIC(10,2) NOT NULL CHECK (amount > 0),
+  note         TEXT,
+  entry_at     BIGINT      NOT NULL,
+  sync_status  TEXT        NOT NULL DEFAULT 'synced',
+  updated_at   BIGINT      NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW()) * 1000
+)`,
+    `CREATE INDEX IF NOT EXISTS idx_ledger_business    ON ledger_entries(business_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_ledger_customer    ON ledger_entries(customer_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_ledger_updated_at  ON ledger_entries(updated_at)`,
+
 ];
 
 async function migrate() {

@@ -33,6 +33,23 @@ export async function registerProduct({
     return result;
 }
 
+export async function updateProduct({ productId, sellingPrice, reorderLevel }) {
+    const now = Date.now();
+
+    const result = await database.write(async () => {
+        const product = await database.get('products').find(productId);
+        return product.update(p => {
+            if (sellingPrice !== undefined) p.sellingPrice = sellingPrice;
+            if (reorderLevel !== undefined) p.reorderLevel = reorderLevel;
+            p.syncStatus = PENDING;
+            p.updatedAt = now;
+        });
+    });
+
+    syncAfterWrite();   // this write lands in the sync `updated` bucket
+    return result;
+}
+
 export async function getProductByBarcode(barcode) {
     if (!barcode) return null;
     const rows = await database.get('products')
@@ -82,6 +99,30 @@ export async function recordStockIn({ productId, quantity, batchNo, expiryDate, 
     return result;
 }
 
+// ── Wastage / write-off ─────────────────────────────────────────────────────────
+// Records a 'wastage' transaction against a batch. Because stock is derived from
+// the transaction ledger (stock_in/return add, everything else subtracts), this
+// immediately removes the written-off units from available stock — no separate
+// stock column to keep in sync.
+export async function recordWastage({ productId, batchId, quantity }) {
+    const now = Date.now();
+
+    const result = await database.write(async () => {
+        return database.get('stock_transactions').create(t => {
+            t.productId = productId;
+            t.batchId = batchId;
+            t.type = 'wastage';
+            t.quantity = quantity;
+            t.txnAt = now;
+            t.syncStatus = PENDING;
+            t.updatedAt = now;
+        });
+    });
+
+    syncAfterWrite();
+    return result;
+}
+
 // ── Sales ─────────────────────────────────────────────────────────────────────
 
 export async function recordSale({ customerId, items, paymentMode }) {
@@ -119,6 +160,23 @@ export async function recordSale({ customerId, items, paymentMode }) {
                 t.txnAt = now;
                 t.syncStatus = PENDING;
                 t.updatedAt = now;
+            });
+        }
+
+        // Credit ("khata") sale — book the receivable in the same transaction as
+        // the order, so the sale and the debt can never diverge. Requires a
+        // customer to attribute the debt to.
+        if (paymentMode === 'credit' && customerId) {
+            await database.get('ledger_entries').create(e => {
+                e.businessId = bId;
+                e.customerId = customerId;
+                e.orderId = order.id;
+                e.type = 'credit_sale';
+                e.amount = total;
+                e.note = '';
+                e.entryAt = now;
+                e.syncStatus = PENDING;
+                e.updatedAt = now;
             });
         }
 
@@ -164,6 +222,91 @@ export async function upsertCustomer({ name, phone }) {
 
     syncAfterWrite();
     return result;
+}
+
+// ── Khata / Credit Ledger ───────────────────────────────────────────────────────
+// A customer's outstanding balance is DERIVED from the append-only ledger:
+//   balance = Σ credit_sale.amount − Σ repayment.amount   (positive ⇒ they owe us)
+
+export async function recordRepayment({ customerId, amount, note }) {
+    const bId = getBusinessId();
+    const now = Date.now();
+
+    const result = await database.write(async () => {
+        return database.get('ledger_entries').create(e => {
+            e.businessId = bId;
+            e.customerId = customerId;
+            e.orderId = null;               // repayments aren't tied to a single order
+            e.type = 'repayment';
+            e.amount = amount;
+            e.note = note || '';
+            e.entryAt = now;
+            e.syncStatus = PENDING;
+            e.updatedAt = now;
+        });
+    });
+
+    syncAfterWrite();
+    return result;
+}
+
+export async function getCustomerBalance(customerId) {
+    const entries = await database.get('ledger_entries')
+        .query(Q.where('customer_id', customerId))
+        .fetch();
+    return entries.reduce((bal, e) => bal + e.signedAmount, 0);
+}
+
+export async function getCustomersByIds(ids) {
+    const unique = [...new Set((ids || []).filter(Boolean))];
+    if (unique.length === 0) return new Map();
+    const customers = await database.get('customers')
+        .query(Q.where('id', Q.oneOf(unique)))
+        .fetch();
+    return new Map(customers.map(c => [c.id, c]));
+}
+
+// All customers with a positive outstanding balance, largest first.
+// Two batched queries total, regardless of how many customers/entries exist.
+export async function getOutstandingCustomers() {
+    const bId = getBusinessId();
+    const entries = await database.get('ledger_entries')
+        .query(Q.where('business_id', bId))
+        .fetch();
+    if (entries.length === 0) return [];
+
+    const balanceByCustomer = {};
+    for (const e of entries) {
+        balanceByCustomer[e.customerId] = (balanceByCustomer[e.customerId] || 0) + e.signedAmount;
+    }
+
+    // Guard against floating-point dust from NUMERIC round-trips (e.g. 0.0000001).
+    const owing = Object.entries(balanceByCustomer).filter(([, bal]) => bal > 0.005);
+    if (owing.length === 0) return [];
+
+    const customerMap = await getCustomersByIds(owing.map(([id]) => id));
+    return owing
+        .map(([id, balance]) => ({ customer: customerMap.get(id), balance }))
+        .filter(row => row.customer)
+        .sort((a, b) => b.balance - a.balance);
+}
+
+export async function getCustomerByPhone(phone) {
+    const bId = getBusinessId();
+    if (!phone) return null;
+    const rows = await database.get('customers')
+        .query(Q.where('phone', phone), Q.where('business_id', bId))
+        .fetch();
+    return rows[0] ?? null;
+}
+
+// Full ledger history for one customer (newest first) plus the derived balance.
+export async function getCustomerLedger(customerId) {
+    const entries = await database.get('ledger_entries')
+        .query(Q.where('customer_id', customerId), Q.sortBy('entry_at', Q.desc))
+        .fetch();
+    const balance = entries.reduce((bal, e) => bal + e.signedAmount, 0);
+    return { entries, balance };
 }
 
 // ── Analytics ─────────────────────────────────────────────────────────────────

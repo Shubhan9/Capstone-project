@@ -2,9 +2,9 @@ import React from 'react';
 import { formatCurrency } from '../lib/format';
 
 const PAYMENT_COLORS = {
-    cash: '#1f8a70',
-    upi: '#1d4ed8',
-    credit: '#d97706',
+    cash: '#1db97a',
+    upi: '#4a90e2',
+    credit: '#f0a500',
 };
 
 export default function PaymentDonut({ totals }) {
@@ -45,9 +45,9 @@ export default function PaymentDonut({ totals }) {
                         <title>{`${segment.label}: ${formatCurrency(segment.value)}`}</title>
                     </path>
                 ))}
-                <circle cx="110" cy="110" r="44" fill="#f6efe3" />
-                <text x="110" y="102" textAnchor="middle" className="donut-center-label">Total</text>
-                <text x="110" y="124" textAnchor="middle" className="donut-center-value">{formatCurrency(total)}</text>
+                <circle cx="110" cy="110" r="46" fill="var(--bg-card)" />
+                <text x="110" y="104" textAnchor="middle" className="donut-center-label">Total</text>
+                <text x="110" y="126" textAnchor="middle" className="donut-center-value">{formatCurrency(total)}</text>
             </svg>
 
             <div className="legend">

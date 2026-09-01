@@ -223,16 +223,22 @@ button {
 
 .kpi {
     border-radius: 16px;
-    padding: 16px;
-    min-height: 144px;
+    padding: 18px;
+    min-height: 148px;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
+    justify-content: flex-start;
+    gap: 10px;
+    border-top-width: 3px;
     /* button reset */
     text-align: left;
     width: 100%;
     font: inherit;
     transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.kpi__hint {
+    margin-top: auto;
 }
 
 .kpi[type="button"]:hover {
@@ -273,22 +279,27 @@ button {
 
 .kpi--teal {
     border-color: rgba(29, 185, 122, 0.28);
+    border-top-color: var(--teal);
 }
 
 .kpi--blue {
     border-color: rgba(74, 144, 226, 0.28);
+    border-top-color: var(--blue);
 }
 
 .kpi--amber {
     border-color: rgba(240, 165, 0, 0.28);
+    border-top-color: var(--amber);
 }
 
 .kpi--rose {
     border-color: rgba(232, 69, 69, 0.28);
+    border-top-color: var(--red);
 }
 
 .kpi--slate {
     border-color: rgba(139, 144, 168, 0.22);
+    border-top-color: var(--text-secondary);
 }
 
 .auth-page {
@@ -561,15 +572,13 @@ button {
 }
 
 .chart-shell {
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding-bottom: 6px;
+    overflow: hidden;
 }
 
 .sales-chart {
     width: 100%;
-    min-width: 620px;
-    height: auto;
+    height: 280px;
+    display: block;
 }
 
 .chart-grid {
@@ -653,13 +662,15 @@ button {
 
 .donut-center-label {
     fill: var(--text-secondary);
-    font-size: 13px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
 }
 
 .donut-center-value {
     fill: var(--text-primary);
-    font-size: 13px;
-    font-weight: 700;
+    font-size: 17px;
+    font-weight: 800;
 }
 
 .legend {
