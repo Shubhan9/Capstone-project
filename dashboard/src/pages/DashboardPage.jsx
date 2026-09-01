@@ -292,6 +292,7 @@ export default function DashboardPage({ auth }) {
                             />
                         </div>
 
+                        <div className="overview-row">
                         <Panel
                             title="Sales Performance"
                             subtitle={getSalesSubtitle(period)}
@@ -324,6 +325,7 @@ export default function DashboardPage({ auth }) {
                                 <PaymentDonut totals={paymentTotals} />
                             ) : null}
                         </Panel>
+                        </div>
 
                         <div className="dashboard-split">
                             <Panel title="Top Products" subtitle="Best-selling products in the last 30 days">
