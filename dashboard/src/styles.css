@@ -316,140 +316,44 @@ button {
 }
 
 .login-page {
+    position: relative;
     min-height: 100vh;
     display: grid;
-    grid-template-columns: 1.05fr 0.95fr;
-    background: var(--bg);
-}
-
-/* ── Left brand / product panel ── */
-.login-brandpanel {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    padding: 48px;
+    place-items: center;
+    padding: 24px;
     overflow: hidden;
-    border-right: 1px solid var(--border);
     background:
-        radial-gradient(900px 520px at 18% 8%, rgba(29, 185, 122, 0.16), transparent 60%),
-        radial-gradient(720px 520px at 95% 95%, rgba(74, 144, 226, 0.10), transparent 55%),
-        linear-gradient(160deg, #12151d, #0c0e14);
+        radial-gradient(1000px 640px at 50% 4%, rgba(29, 185, 122, 0.18), transparent 60%),
+        radial-gradient(760px 560px at 88% 104%, rgba(29, 185, 122, 0.08), transparent 55%),
+        var(--bg);
 }
 
-.login-brandpanel::before {
+/* faint green grid across the whole page, fading toward the edges */
+.login-page::before {
     content: "";
     position: absolute;
     inset: 0;
     background-image:
-        linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
-    background-size: 38px 38px;
-    -webkit-mask-image: radial-gradient(circle at 28% 42%, #000, transparent 78%);
-    mask-image: radial-gradient(circle at 28% 42%, #000, transparent 78%);
+        linear-gradient(rgba(29, 185, 122, 0.07) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(29, 185, 122, 0.07) 1px, transparent 1px);
+    background-size: 40px 40px;
+    -webkit-mask-image: radial-gradient(circle at 50% 34%, #000, transparent 82%);
+    mask-image: radial-gradient(circle at 50% 34%, #000, transparent 82%);
     pointer-events: none;
 }
 
-.login-brandpanel__brand,
-.login-preview,
-.login-brandpanel__foot {
+.login-card {
     position: relative;
     z-index: 1;
-}
-
-.login-logo--lg { font-size: 30px; }
-
-.login-preview {
-    align-self: center;
     width: 100%;
     max-width: 400px;
-    margin: auto 0;
-    padding: 22px;
-    border-radius: 20px;
-    background: rgba(26, 29, 39, 0.72);
-    border: 1px solid var(--border-light);
-    box-shadow: 0 30px 70px rgba(0, 0, 0, 0.45);
-    backdrop-filter: blur(6px);
-}
-
-.login-preview__head {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 14px;
-    color: var(--text-secondary);
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-}
-
-.login-preview__live { color: var(--teal); }
-
-.login-preview__label {
-    color: var(--text-muted);
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-}
-
-.login-preview__revenue strong {
-    display: block;
-    margin-top: 2px;
-    color: var(--text-primary);
-    font-size: 34px;
-    font-weight: 800;
-    letter-spacing: -0.03em;
-}
-
-.login-preview__chart {
-    display: block;
-    width: 100%;
-    height: 68px;
-    margin: 14px 0;
-}
-
-.login-preview__tiles {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 10px;
-}
-
-.login-preview__tiles div {
-    padding: 10px 12px;
-    border-radius: 12px;
-    background: var(--bg-input);
-    border: 1px solid var(--border);
-}
-
-.login-preview__tiles span { color: var(--text-muted); font-size: 11px; }
-
-.login-preview__tiles strong {
-    display: block;
-    margin-top: 2px;
-    color: var(--text-primary);
-    font-size: 16px;
-    font-weight: 700;
-}
-
-.login-brandpanel__foot {
-    margin: 0;
-    color: var(--text-muted);
-    font-size: 13px;
-}
-
-/* ── Right form panel ── */
-.login-formpanel {
-    display: grid;
-    place-items: center;
-    padding: 32px 24px;
-}
-
-.login-card {
-    width: 100%;
-    max-width: 360px;
     display: grid;
     gap: 20px;
+    padding: 40px 32px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    box-shadow: 0 30px 70px rgba(0, 0, 0, 0.45);
 }
 
 .login-brand {
@@ -457,8 +361,6 @@ button {
     align-items: center;
     gap: 10px;
 }
-
-.login-brand--form { display: none; }
 
 .login-logo {
     font-size: 24px;
@@ -539,12 +441,6 @@ button {
 
 .login-submit:hover { background: var(--teal-dim); }
 .login-submit:disabled { opacity: 0.7; cursor: wait; }
-
-@media (max-width: 900px) {
-    .login-page { grid-template-columns: 1fr; }
-    .login-brandpanel { display: none; }
-    .login-brand--form { display: flex; }
-}
 
 .button {
     border: 1px solid transparent;
