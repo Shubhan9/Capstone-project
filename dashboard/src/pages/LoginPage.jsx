@@ -8,11 +8,26 @@ export default function LoginPage({ auth }) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
+    // Keep only digits, cap at 10 — a valid Indian mobile number.
+    function setPhone(value) {
+        const digits = value.replace(/\D/g, '').slice(0, 10);
+        setForm(c => ({ ...c, phone: digits }));
+    }
+
     async function handleSubmit(event) {
         event.preventDefault();
-        setLoading(true);
         setError('');
 
+        if (form.phone.length !== 10) {
+            setError('Enter a valid 10-digit phone number.');
+            return;
+        }
+        if (!form.password) {
+            setError('Enter your password.');
+            return;
+        }
+
+        setLoading(true);
         try {
             const payload = await loginRequest(form);
             auth.login({ token: payload.token, business: payload.business });
@@ -26,7 +41,7 @@ export default function LoginPage({ auth }) {
 
     return (
         <main className="login-page">
-            <section className="login-card">
+            <form className="login-card" onSubmit={handleSubmit}>
                 <div className="login-brand">
                     <span className="login-logo">SmartOps</span>
                     <span className="login-badge">Analytics</span>
@@ -34,43 +49,39 @@ export default function LoginPage({ auth }) {
 
                 <div className="login-heading">
                     <h1>Sign in</h1>
-                    <p>Access your store's sales, stock and customer analytics.</p>
+                    <p>Use your registered shop phone and password.</p>
                 </div>
 
-                <form className="login-form" onSubmit={handleSubmit}>
-                    <label>
-                        <span>Phone</span>
-                        <input
-                            autoComplete="username"
-                            inputMode="tel"
-                            value={form.phone}
-                            onChange={e => setForm(c => ({ ...c, phone: e.target.value }))}
-                            placeholder="Registered phone number"
-                            required
-                        />
-                    </label>
+                <label>
+                    <span>Phone</span>
+                    <input
+                        autoComplete="username"
+                        inputMode="numeric"
+                        value={form.phone}
+                        onChange={e => setPhone(e.target.value)}
+                        placeholder="10-digit phone number"
+                        required
+                    />
+                </label>
 
-                    <label>
-                        <span>Password</span>
-                        <input
-                            autoComplete="current-password"
-                            type="password"
-                            value={form.password}
-                            onChange={e => setForm(c => ({ ...c, password: e.target.value }))}
-                            placeholder="Password"
-                            required
-                        />
-                    </label>
+                <label>
+                    <span>Password</span>
+                    <input
+                        autoComplete="current-password"
+                        type="password"
+                        value={form.password}
+                        onChange={e => setForm(c => ({ ...c, password: e.target.value }))}
+                        placeholder="Password"
+                        required
+                    />
+                </label>
 
-                    {error ? <p className="login-error">{error}</p> : null}
+                {error ? <p className="login-error">{error}</p> : null}
 
-                    <button className="login-submit" type="submit" disabled={loading}>
-                        {loading ? 'Signing in…' : 'Sign in'}
-                    </button>
-                </form>
-
-                <p className="login-foot">Manage your shop on the go with the SmartOps mobile app.</p>
-            </section>
+                <button className="login-submit" type="submit" disabled={loading}>
+                    {loading ? 'Signing in…' : 'Sign in'}
+                </button>
+            </form>
         </main>
     );
 }

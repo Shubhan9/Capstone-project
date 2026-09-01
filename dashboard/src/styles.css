@@ -320,21 +320,14 @@ button {
     display: grid;
     place-items: center;
     padding: 24px;
-    background:
-        radial-gradient(1100px 560px at 50% -12%, rgba(29, 185, 122, 0.10), transparent 60%),
-        var(--bg);
+    background: var(--bg);
 }
 
 .login-card {
     width: 100%;
-    max-width: 420px;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 24px;
-    padding: 40px 32px;
+    max-width: 340px;
     display: grid;
-    gap: 24px;
-    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+    gap: 20px;
 }
 
 .login-brand {
@@ -364,7 +357,7 @@ button {
 
 .login-heading h1 {
     margin: 0 0 6px;
-    font-size: 28px;
+    font-size: 30px;
     letter-spacing: -0.02em;
 }
 
@@ -375,12 +368,7 @@ button {
     line-height: 1.5;
 }
 
-.login-form {
-    display: grid;
-    gap: 16px;
-}
-
-.login-form label {
+.login-card label {
     display: grid;
     gap: 8px;
     font-size: 13px;
@@ -388,7 +376,7 @@ button {
     color: var(--text-secondary);
 }
 
-.login-form input {
+.login-card input {
     width: 100%;
     border-radius: 12px;
     border: 1px solid var(--border-light);
@@ -398,14 +386,11 @@ button {
     font-size: 15px;
 }
 
-.login-form input::placeholder {
-    color: var(--text-muted);
-}
+.login-card input::placeholder { color: var(--text-muted); }
 
-.login-form input:focus {
+.login-card input:focus {
     outline: none;
     border-color: var(--teal);
-    box-shadow: 0 0 0 3px rgba(29, 185, 122, 0.18);
 }
 
 .login-error {
@@ -427,21 +412,8 @@ button {
     transition: background 120ms ease;
 }
 
-.login-submit:hover {
-    background: var(--teal-dim);
-}
-
-.login-submit:disabled {
-    opacity: 0.7;
-    cursor: wait;
-}
-
-.login-foot {
-    margin: 0;
-    text-align: center;
-    color: var(--text-muted);
-    font-size: 12px;
-}
+.login-submit:hover { background: var(--teal-dim); }
+.login-submit:disabled { opacity: 0.7; cursor: wait; }
 
 .button {
     border: 1px solid transparent;
