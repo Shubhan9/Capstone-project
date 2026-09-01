@@ -106,7 +106,12 @@ export default function HomeScreen({ navigation, onLogout, name }) {
 
                 {/* Main Revenue Card */}
                 <View style={s.revenueCard}>
-                    <Text style={s.revenueLabel}>TODAY&apos;S REVENUE</Text>
+                    <View style={s.revenueHeaderRow}>
+                        <Text style={s.revenueLabel}>TODAY&apos;S REVENUE</Text>
+                        <TouchableOpacity onPress={() => navigation.navigate('DaySummary')} activeOpacity={0.7}>
+                            <Text style={s.daySummaryLink}>Day summary ›</Text>
+                        </TouchableOpacity>
+                    </View>
                     <Text style={s.revenueValue}>₹{stats.revenue.toFixed(0)}</Text>
 
                     <View style={s.revenueStatsRow}>
@@ -294,7 +299,9 @@ const s = StyleSheet.create({
         shadowRadius: 16,
         elevation: 5,
     },
-    revenueLabel: { color: colors.textSecondary, fontSize: font.xs, fontWeight: '700', letterSpacing: 1.5, marginBottom: spacing.xs },
+    revenueHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.xs },
+    revenueLabel: { color: colors.textSecondary, fontSize: font.xs, fontWeight: '700', letterSpacing: 1.5 },
+    daySummaryLink: { color: colors.teal, fontSize: font.xs, fontWeight: '700' },
     revenueValue: { color: colors.white, fontSize: 44, fontWeight: '800', marginBottom: spacing.xl, letterSpacing: -1 },
 
     revenueStatsRow: { flexDirection: 'row', backgroundColor: colors.bgInput, borderRadius: radius.lg, padding: spacing.md },

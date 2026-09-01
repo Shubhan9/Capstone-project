@@ -414,3 +414,44 @@ export async function getTodaySales() {
     const total = orders.reduce((s, o) => s + o.totalAmount, 0);
     return { count: orders.length, total };
 }
+
+// End-of-day closing summary, computed entirely from the local DB (works offline).
+export async function getDaySummary() {
+    const bId = getBusinessId();
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const start = startOfDay.getTime();
+
+    const orders = await database.get('sale_orders')
+        .query(Q.where('business_id', bId), Q.where('sale_at', Q.gte(start)))
+        .fetch();
+
+    const revenue = orders.reduce((sum, o) => sum + o.totalAmount, 0);
+    const byMode = { cash: 0, upi: 0, credit: 0 };
+    for (const o of orders) {
+        const mode = byMode[o.paymentMode] !== undefined ? o.paymentMode : 'cash';
+        byMode[mode] += o.totalAmount;
+    }
+
+    const orderIds = orders.map(o => o.id);
+    let itemsSold = 0;
+    if (orderIds.length > 0) {
+        const items = await database.get('sale_items')
+            .query(Q.where('order_id', Q.oneOf(orderIds)))
+            .fetch();
+        itemsSold = items.reduce((sum, it) => sum + it.quantity, 0);
+    }
+
+    const wastageTxns = await database.get('stock_transactions')
+        .query(Q.where('type', 'wastage'), Q.where('txn_at', Q.gte(start)))
+        .fetch();
+    const wastageUnits = wastageTxns.reduce((sum, t) => sum + t.quantity, 0);
+
+    const ledgerToday = await database.get('ledger_entries')
+        .query(Q.where('business_id', bId), Q.where('entry_at', Q.gte(start)))
+        .fetch();
+    const creditGiven = ledgerToday.filter(e => e.type === 'credit_sale').reduce((sum, e) => sum + e.amount, 0);
+    const repaid = ledgerToday.filter(e => e.type === 'repayment').reduce((sum, e) => sum + e.amount, 0);
+
+    return { orderCount: orders.length, revenue, byMode, itemsSold, wastageUnits, creditGiven, repaid };
+}
