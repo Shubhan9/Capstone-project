@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity,
     TextInput, StyleSheet, Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
-import { getProductByBarcode, recordStockIn } from '../database/actions';
+import { getProductByBarcode, recordStockIn, getProductById } from '../database/actions';
 import BarcodeScanner from '../../components/BarcodeScanner';
 import { Card, PrimaryButton, GhostButton } from '../../components/UI';
 import { colors, spacing, radius, font } from '../theme';
@@ -12,11 +12,22 @@ const INIT_FORM = {
     quantity: '', batchNo: '', expiryDate: '', costPrice: '',
 };
 
-export default function StockInScreen({ navigation }) {
+export default function StockInScreen({ navigation, route }) {
     const [scanning, setScanning] = useState(false);
     const [product, setProduct] = useState(null);
     const [form, setForm] = useState(INIT_FORM);
     const [loading, setLoading] = useState(false);
+
+    // Pre-select the product when opened from an alert/inventory ("Record stock-in"),
+    // so the user isn't forced to re-scan something already in the catalog.
+    useEffect(() => {
+        const pid = route?.params?.productId;
+        if (!pid) return;
+        (async () => {
+            const found = await getProductById(pid);
+            if (found) setProduct(found);
+        })();
+    }, [route?.params?.productId]);
 
     async function handleScan(barcode) {
         const found = await getProductByBarcode(barcode);

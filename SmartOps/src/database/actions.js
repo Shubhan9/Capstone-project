@@ -58,6 +58,15 @@ export async function getProductByBarcode(barcode) {
     return rows[0] ?? null;
 }
 
+export async function getProductById(id) {
+    if (!id) return null;
+    try {
+        return await database.get('products').find(id);
+    } catch {
+        return null;   // find() throws if the id doesn't exist
+    }
+}
+
 export async function getAllProducts() {
     const bId = getBusinessId();
     return database.get('products')
