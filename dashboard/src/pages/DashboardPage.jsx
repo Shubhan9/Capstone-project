@@ -232,6 +232,7 @@ export default function DashboardPage({ auth }) {
     const expiryItems = inventory?.expiry_risk?.items || [];
     const deadStockItems = inventory?.dead_stock?.items || [];
     const opportunityItems = inventory?.opportunities?.items || [];
+    const markdownItems = inventory?.markdowns?.items || [];
 
     return (
         <Shell
@@ -292,6 +293,7 @@ export default function DashboardPage({ auth }) {
                             />
                         </div>
 
+                        <div className="overview-row">
                         <Panel
                             title="Sales Performance"
                             subtitle={getSalesSubtitle(period)}
@@ -324,6 +326,7 @@ export default function DashboardPage({ auth }) {
                                 <PaymentDonut totals={paymentTotals} />
                             ) : null}
                         </Panel>
+                        </div>
 
                         <div className="dashboard-split">
                             <Panel title="Top Products" subtitle="Best-selling products in the last 30 days">
@@ -442,6 +445,12 @@ export default function DashboardPage({ auth }) {
                                         hint: 'Assortment and category growth suggestions',
                                         tone: 'teal',
                                         section: 'opportunities',
+                                    }, {
+                                        label: 'Suggested Markdowns',
+                                        value: formatCompactNumber(inventory?.markdowns?.summary?.markdown_count),
+                                        hint: 'Slow stock to discount while staying profitable',
+                                        tone: 'amber',
+                                        section: 'markdowns',
                                     }].map(card => (
                                         <KpiCard
                                             key={card.section}
@@ -608,6 +617,44 @@ export default function DashboardPage({ auth }) {
                                                             <p className="insight-card__action">{item.recommended_action}</p>
                                                         </div>
                                                     ))}
+                                                </div>
+                                            )}
+                                        </Panel>
+                                    )}
+
+                                    {(activeSection === null || activeSection === 'markdowns') && (
+                                        <Panel title="Suggested Markdowns" subtitle="Discount slow stock to clear it while staying profitable">
+                                            {markdownItems.length === 0 ? (
+                                                <EmptyBlock title="No markdown suggestions" subtitle="No slow-moving stock can be profitably discounted right now." />
+                                            ) : (
+                                                <div className="table-wrap">
+                                                    <table>
+                                                        <thead>
+                                                            <tr>
+                                                                <th>Product</th>
+                                                                <th>Price → Suggested</th>
+                                                                <th>Discount</th>
+                                                                <th>Margin after</th>
+                                                                <th>Blocked</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {markdownItems.slice(0, 8).map(item => (
+                                                                <tr key={item.product_id}>
+                                                                    <td>
+                                                                        <div className="customer-cell">
+                                                                            <strong>{item.name}</strong>
+                                                                            <span>{item.category} · {item.current_stock} {item.unit} · {item.status.replace('_', ' ')}</span>
+                                                                        </div>
+                                                                    </td>
+                                                                    <td>{formatCurrency(item.selling_price)} → <strong>{formatCurrency(item.suggested_price)}</strong></td>
+                                                                    <td><span className="severity-pill severity-pill--high">{item.discount_pct}% off</span></td>
+                                                                    <td><span className="severity-pill severity-pill--safe">{item.margin_pct_after}%</span></td>
+                                                                    <td>{formatCurrency(item.blocked_cost_value)}</td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
                                                 </div>
                                             )}
                                         </Panel>

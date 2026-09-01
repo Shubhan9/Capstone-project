@@ -1,11 +1,12 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity,
-    StyleSheet, RefreshControl, StatusBar, Alert
+    StyleSheet, RefreshControl, StatusBar, Alert, Modal, ActivityIndicator
 } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 import { useFocusEffect } from '@react-navigation/native';
 import { getLowStockProducts, getNearExpiryBatches, getTodaySales, getBatchQuantities, getOutstandingCustomers } from '../database/actions';
+import { syncWithServer } from '../sync/syncEngine';
 import { SectionHeader } from '../../components/UI';
 import { colors, spacing, radius, font } from '../theme';
 
@@ -13,6 +14,8 @@ export default function HomeScreen({ navigation, onLogout, name }) {
     const [stats, setStats] = useState({ sales: 0, revenue: 0, lowStock: 0, expiry: 0, khataDue: 0, khataCount: 0 });
     const [refreshing, setRefreshing] = useState(false);
     const [online, setOnline] = useState(true);
+    const [menuOpen, setMenuOpen] = useState(false);
+    const [syncing, setSyncing] = useState(false);
 
     // Reflect real device connectivity in the status dot (was hardcoded green).
     useEffect(() => {
@@ -54,6 +57,24 @@ export default function HomeScreen({ navigation, onLogout, name }) {
         setRefreshing(false);
     }
 
+    async function handleSyncNow() {
+        setSyncing(true);
+        try {
+            await syncWithServer();
+            await load();
+        } finally {
+            setSyncing(false);
+        }
+    }
+
+    function confirmLogout() {
+        setMenuOpen(false);
+        Alert.alert('Log out', 'Are you sure you want to log out?', [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Log out', style: 'destructive', onPress: onLogout },
+        ]);
+    }
+
     return (
         <View style={s.root}>
             <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
@@ -76,12 +97,7 @@ export default function HomeScreen({ navigation, onLogout, name }) {
                     <TouchableOpacity
                         style={s.profileAvatar}
                         activeOpacity={0.7}
-                        onPress={() => {
-                            Alert.alert('Logout', 'Are you sure you want to log out?', [
-                                { text: 'Cancel', style: 'cancel' },
-                                { text: 'Logout', style: 'destructive', onPress: onLogout }
-                            ]);
-                        }}
+                        onPress={() => setMenuOpen(true)}
                     >
                         <Text style={s.profileInitial}>{name.charAt(0).toUpperCase()}</Text>
                         <View style={[s.onlineDot, { backgroundColor: online ? colors.teal : colors.textMuted }]} />
@@ -90,7 +106,12 @@ export default function HomeScreen({ navigation, onLogout, name }) {
 
                 {/* Main Revenue Card */}
                 <View style={s.revenueCard}>
-                    <Text style={s.revenueLabel}>TODAY&apos;S REVENUE</Text>
+                    <View style={s.revenueHeaderRow}>
+                        <Text style={s.revenueLabel}>TODAY&apos;S REVENUE</Text>
+                        <TouchableOpacity onPress={() => navigation.navigate('DaySummary')} activeOpacity={0.7}>
+                            <Text style={s.daySummaryLink}>Day summary ›</Text>
+                        </TouchableOpacity>
+                    </View>
                     <Text style={s.revenueValue}>₹{stats.revenue.toFixed(0)}</Text>
 
                     <View style={s.revenueStatsRow}>
@@ -159,6 +180,12 @@ export default function HomeScreen({ navigation, onLogout, name }) {
                 </View>
 
                 {/* Tertiary Actions */}
+                <TouchableOpacity style={[s.tertiaryActionCard, { marginBottom: spacing.md }]} onPress={() => navigation.navigate('Reorder')} activeOpacity={0.75}>
+                    <Text style={s.tertiaryIcon}>🛒</Text>
+                    <Text style={s.tertiaryTitle}>Smart Restock</Text>
+                    <Text style={s.alertArrow}>›</Text>
+                </TouchableOpacity>
+
                 <TouchableOpacity style={[s.tertiaryActionCard, { marginBottom: spacing.md }]} onPress={() => navigation.navigate('Inventory')} activeOpacity={0.75}>
                     <Text style={s.tertiaryIcon}>📦</Text>
                     <Text style={s.tertiaryTitle}>View Full Inventory</Text>
@@ -184,6 +211,48 @@ export default function HomeScreen({ navigation, onLogout, name }) {
                 </TouchableOpacity>
 
             </ScrollView>
+
+            {/* Account / quick-actions menu (opened from the avatar) */}
+            <Modal visible={menuOpen} transparent animationType="slide" onRequestClose={() => setMenuOpen(false)}>
+                <TouchableOpacity style={s.menuOverlay} activeOpacity={1} onPress={() => setMenuOpen(false)}>
+                    <View style={s.menuSheet}>
+                        <View style={s.menuHeader}>
+                            <View style={s.menuAvatar}>
+                                <Text style={s.profileInitial}>{name.charAt(0).toUpperCase()}</Text>
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={s.menuShopName} numberOfLines={1}>{name}</Text>
+                                <Text style={s.menuStatus}>{online ? 'Online · synced' : 'Offline · saved on device'}</Text>
+                            </View>
+                        </View>
+
+                        <TouchableOpacity style={s.menuRow} onPress={handleSyncNow} disabled={syncing} activeOpacity={0.7}>
+                            <Text style={s.menuIcon}>🔄</Text>
+                            <Text style={s.menuLabel}>{syncing ? 'Syncing…' : 'Sync now'}</Text>
+                            {syncing && <ActivityIndicator size="small" color={colors.teal} />}
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={s.menuRow} onPress={() => { setMenuOpen(false); navigation.navigate('Khata'); }} activeOpacity={0.7}>
+                            <Text style={s.menuIcon}>📒</Text>
+                            <Text style={s.menuLabel}>Khata</Text>
+                            {stats.khataDue > 0 && <Text style={s.menuMeta}>₹{stats.khataDue.toFixed(0)} due</Text>}
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={s.menuRow} onPress={() => { setMenuOpen(false); navigation.navigate('Alerts'); }} activeOpacity={0.7}>
+                            <Text style={s.menuIcon}>⚠️</Text>
+                            <Text style={s.menuLabel}>Alerts</Text>
+                            {(stats.lowStock + stats.expiry) > 0 && <Text style={s.menuMeta}>{stats.lowStock + stats.expiry}</Text>}
+                        </TouchableOpacity>
+
+                        <View style={s.menuDivider} />
+
+                        <TouchableOpacity style={s.menuRow} onPress={confirmLogout} activeOpacity={0.7}>
+                            <Text style={s.menuIcon}>🚪</Text>
+                            <Text style={[s.menuLabel, { color: colors.red }]}>Log out</Text>
+                        </TouchableOpacity>
+                    </View>
+                </TouchableOpacity>
+            </Modal>
         </View>
     );
 }
@@ -236,7 +305,9 @@ const s = StyleSheet.create({
         shadowRadius: 16,
         elevation: 5,
     },
-    revenueLabel: { color: colors.textSecondary, fontSize: font.xs, fontWeight: '700', letterSpacing: 1.5, marginBottom: spacing.xs },
+    revenueHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.xs },
+    revenueLabel: { color: colors.textSecondary, fontSize: font.xs, fontWeight: '700', letterSpacing: 1.5 },
+    daySummaryLink: { color: colors.teal, fontSize: font.xs, fontWeight: '700' },
     revenueValue: { color: colors.white, fontSize: 44, fontWeight: '800', marginBottom: spacing.xl, letterSpacing: -1 },
 
     revenueStatsRow: { flexDirection: 'row', backgroundColor: colors.bgInput, borderRadius: radius.lg, padding: spacing.md },
@@ -318,4 +389,32 @@ const s = StyleSheet.create({
         paddingHorizontal: spacing.md, paddingVertical: 4,
     },
     khataDueText: { color: colors.amber, fontSize: font.xs, fontWeight: '700' },
+
+    menuOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+    menuSheet: {
+        backgroundColor: colors.bgCard,
+        borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl,
+        borderWidth: 1, borderColor: colors.border,
+        padding: spacing.lg, paddingBottom: 40,
+    },
+    menuHeader: {
+        flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+        paddingBottom: spacing.lg, marginBottom: spacing.sm,
+        borderBottomWidth: 1, borderBottomColor: colors.border,
+    },
+    menuAvatar: {
+        width: 44, height: 44, borderRadius: 22,
+        backgroundColor: colors.bgInput,
+        alignItems: 'center', justifyContent: 'center',
+    },
+    menuShopName: { color: colors.textPrimary, fontSize: font.lg, fontWeight: '700' },
+    menuStatus: { color: colors.textMuted, fontSize: font.xs, marginTop: 2 },
+    menuRow: {
+        flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+        paddingVertical: spacing.md,
+    },
+    menuIcon: { fontSize: 18, width: 24, textAlign: 'center' },
+    menuLabel: { flex: 1, color: colors.textPrimary, fontSize: font.md, fontWeight: '600' },
+    menuMeta: { color: colors.amber, fontSize: font.sm, fontWeight: '700' },
+    menuDivider: { height: 1, backgroundColor: colors.border, marginVertical: spacing.xs },
 });

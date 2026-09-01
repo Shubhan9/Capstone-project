@@ -1,13 +1,27 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Vibration } from 'react-native';
+import {
+    View, Text, TouchableOpacity, StyleSheet, Vibration,
+    TextInput, KeyboardAvoidingView, Platform,
+} from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { colors, font, radius, spacing } from '../src/theme';
 
 export default function BarcodeScanner({ onScan, onClose, hint }) {
     const [permission, requestPermission] = useCameraPermissions();
     const [scanned, setScanned] = useState(false);
+    const [torch, setTorch] = useState(false);
+    const [manualMode, setManualMode] = useState(false);
+    const [manualValue, setManualValue] = useState('');
     const scanLockRef = useRef(false);
     const resetTimerRef = useRef(null);
+
+    function submitManual() {
+        const code = manualValue.trim();
+        if (!code) return;
+        setManualMode(false);
+        setManualValue('');
+        onScan(code);
+    }
 
     useEffect(() => {
         if (!permission?.granted) requestPermission();
@@ -51,7 +65,8 @@ export default function BarcodeScanner({ onScan, onClose, hint }) {
         <View style={s.wrapper} >
             <CameraView
                 style={s.camera}
-                onBarcodeScanned={scanned ? undefined : handleScan}
+                enableTorch={torch}
+                onBarcodeScanned={scanned || manualMode ? undefined : handleScan}
                 barcodeScannerSettings={{
                     barcodeTypes: ['ean13', 'ean8', 'qr', 'code128', 'code39', 'upc_a', 'upc_e'],
                 }
@@ -74,11 +89,63 @@ export default function BarcodeScanner({ onScan, onClose, hint }) {
                 </View>
                 <View style={s.frameBottom}>
                     <Text style={s.hint}>{hint || 'Point at a barcode'}</Text>
+                    <View style={s.actionsRow}>
+                        <TouchableOpacity
+                            style={[s.actionChip, torch && s.actionChipActive]}
+                            onPress={() => setTorch(t => !t)}
+                        >
+                            <Text style={[s.actionChipText, torch && s.actionChipTextActive]}>
+                                🔦 {torch ? 'Torch on' : 'Torch'}
+                            </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={s.actionChip} onPress={() => setManualMode(true)}>
+                            <Text style={s.actionChipText}>⌨  Enter code</Text>
+                        </TouchableOpacity>
+                    </View>
                     <TouchableOpacity style={s.closeBtn} onPress={onClose}>
                         <Text style={s.closeBtnText}>✕  Close</Text>
                     </TouchableOpacity>
                 </View>
             </View>
+
+            {/* Manual barcode entry (for damaged / unreadable codes) */}
+            {manualMode && (
+                <KeyboardAvoidingView
+                    style={s.manualOverlay}
+                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                >
+                    <View style={s.manualBox}>
+                        <Text style={s.manualTitle}>Enter barcode</Text>
+                        <Text style={s.manualSub}>Type the number printed under the barcode.</Text>
+                        <TextInput
+                            style={s.manualInput}
+                            placeholder="e.g. 8901030893346"
+                            placeholderTextColor={colors.textMuted}
+                            keyboardType="numeric"
+                            autoFocus
+                            value={manualValue}
+                            onChangeText={setManualValue}
+                            onSubmitEditing={submitManual}
+                            returnKeyType="search"
+                        />
+                        <View style={s.manualBtns}>
+                            <TouchableOpacity
+                                style={s.manualCancel}
+                                onPress={() => { setManualMode(false); setManualValue(''); }}
+                            >
+                                <Text style={s.manualCancelText}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[s.manualSubmit, !manualValue.trim() && { opacity: 0.5 }]}
+                                disabled={!manualValue.trim()}
+                                onPress={submitManual}
+                            >
+                                <Text style={s.manualSubmitText}>Look up</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </KeyboardAvoidingView>
+            )}
         </View>
     );
 }
@@ -119,12 +186,56 @@ const s = StyleSheet.create({
         color: colors.textSecondary, fontSize: font.md,
         letterSpacing: 0.3, textAlign: 'center',
     },
+    actionsRow: { flexDirection: 'row', gap: spacing.sm },
+    actionChip: {
+        borderWidth: 1, borderColor: colors.borderLight,
+        backgroundColor: 'rgba(0,0,0,0.4)',
+        borderRadius: radius.full,
+        paddingHorizontal: spacing.lg, paddingVertical: spacing.sm,
+    },
+    actionChipActive: { borderColor: colors.teal, backgroundColor: colors.teal + '25' },
+    actionChipText: { color: colors.textPrimary, fontSize: font.sm, fontWeight: '600' },
+    actionChipTextActive: { color: colors.teal },
+
     closeBtn: {
         borderWidth: 1, borderColor: colors.border,
         borderRadius: radius.full,
         paddingHorizontal: spacing.xl, paddingVertical: spacing.sm,
     },
     closeBtnText: { color: colors.textPrimary, fontSize: font.sm, fontWeight: '600' },
+
+    manualOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.85)',
+        justifyContent: 'center', alignItems: 'center',
+        padding: spacing.xl,
+    },
+    manualBox: {
+        width: '100%',
+        backgroundColor: colors.bgCard,
+        borderRadius: radius.xl, borderWidth: 1, borderColor: colors.border,
+        padding: spacing.xl,
+    },
+    manualTitle: { color: colors.textPrimary, fontSize: font.xl, fontWeight: '700', marginBottom: spacing.xs },
+    manualSub: { color: colors.textMuted, fontSize: font.sm, marginBottom: spacing.lg },
+    manualInput: {
+        backgroundColor: colors.bgInput,
+        borderRadius: radius.md, borderWidth: 1, borderColor: colors.border,
+        color: colors.textPrimary, fontSize: font.lg,
+        paddingHorizontal: spacing.md, paddingVertical: spacing.md,
+        textAlign: 'center', letterSpacing: 1,
+    },
+    manualBtns: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg },
+    manualCancel: {
+        flex: 1, alignItems: 'center', paddingVertical: spacing.md,
+        borderRadius: radius.md, borderWidth: 1, borderColor: colors.border,
+    },
+    manualCancelText: { color: colors.textSecondary, fontSize: font.md, fontWeight: '600' },
+    manualSubmit: {
+        flex: 1, alignItems: 'center', paddingVertical: spacing.md,
+        borderRadius: radius.md, backgroundColor: colors.teal,
+    },
+    manualSubmitText: { color: colors.bg, fontSize: font.md, fontWeight: '700' },
 
     permissionBox: {
         flex: 1, justifyContent: 'center', alignItems: 'center',

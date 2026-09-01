@@ -185,7 +185,7 @@ export default function AlertsScreen({ navigation }) {
                                     </View>
                                     <TouchableOpacity
                                         style={[s.actionHint, { borderColor: color + '40' }]}
-                                        onPress={() => navigation.navigate('StockIn')}
+                                        onPress={() => navigation.navigate('StockIn', { productId: product.id })}
                                     >
                                         <Text style={[s.actionHintText, { color }]}>Record stock-in</Text>
                                     </TouchableOpacity>

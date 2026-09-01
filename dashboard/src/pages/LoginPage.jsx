@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getApiBaseUrl, loginRequest } from '../lib/api';
+import { loginRequest } from '../lib/api';
 
 export default function LoginPage({ auth }) {
     const navigate = useNavigate();
@@ -15,10 +15,7 @@ export default function LoginPage({ auth }) {
 
         try {
             const payload = await loginRequest(form);
-            auth.login({
-                token: payload.token,
-                business: payload.business,
-            });
+            auth.login({ token: payload.token, business: payload.business });
             navigate('/dashboard', { replace: true });
         } catch (err) {
             setError(err.message || 'Login failed');
@@ -28,60 +25,27 @@ export default function LoginPage({ auth }) {
     }
 
     return (
-        <main className="auth-page">
-            <section className="auth-card auth-card--intro">
-                <div className="auth-brand">
-                    <p className="eyebrow">SmartOps Dashboard</p>
-                    <h1>Operations control for modern retail.</h1>
-                    <p className="auth-copy">
-                        Monitor sales, stock pressure, expiry risk, reorder priorities, and customer demand
-                        from one clean business dashboard.
-                    </p>
+        <main className="login-page">
+            <section className="login-card">
+                <div className="login-brand">
+                    <span className="login-logo">SmartOps</span>
+                    <span className="login-badge">Analytics</span>
                 </div>
 
-                <div className="auth-preview">
-                    <div className="auth-preview__header">
-                        <span>Today</span>
-                        <span className="auth-preview__status">Live business feed</span>
-                    </div>
-                    <div className="auth-preview__grid">
-                        <div>
-                            <strong>Revenue</strong>
-                            <span>Track daily performance</span>
-                        </div>
-                        <div>
-                            <strong>Inventory</strong>
-                            <span>Spot low stock and expiry risk</span>
-                        </div>
-                        <div>
-                            <strong>Recommendations</strong>
-                            <span>Reorder and opportunity insights</span>
-                        </div>
-                        <div>
-                            <strong>Customers</strong>
-                            <span>View segments and repeat buyers</span>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <section className="auth-card auth-card--form">
-                <div className="auth-card__header">
-                    <div>
-                        <p className="eyebrow">Secure Access</p>
-                        <h2>Business Login</h2>
-                    </div>
-
+                <div className="login-heading">
+                    <h1>Sign in</h1>
+                    <p>Access your store's sales, stock and customer analytics.</p>
                 </div>
 
-                <form className="auth-form" onSubmit={handleSubmit}>
+                <form className="login-form" onSubmit={handleSubmit}>
                     <label>
                         <span>Phone</span>
                         <input
                             autoComplete="username"
+                            inputMode="tel"
                             value={form.phone}
-                            onChange={event => setForm(current => ({ ...current, phone: event.target.value }))}
-                            placeholder="Enter registered phone"
+                            onChange={e => setForm(c => ({ ...c, phone: e.target.value }))}
+                            placeholder="Registered phone number"
                             required
                         />
                     </label>
@@ -92,18 +56,20 @@ export default function LoginPage({ auth }) {
                             autoComplete="current-password"
                             type="password"
                             value={form.password}
-                            onChange={event => setForm(current => ({ ...current, password: event.target.value }))}
-                            placeholder="Enter password"
+                            onChange={e => setForm(c => ({ ...c, password: e.target.value }))}
+                            placeholder="Password"
                             required
                         />
                     </label>
 
-                    {error ? <p className="form-error">{error}</p> : null}
+                    {error ? <p className="login-error">{error}</p> : null}
 
-                    <button className="button button--primary" type="submit" disabled={loading}>
-                        {loading ? 'Signing in...' : 'Open Dashboard'}
+                    <button className="login-submit" type="submit" disabled={loading}>
+                        {loading ? 'Signing in…' : 'Sign in'}
                     </button>
                 </form>
+
+                <p className="login-foot">Manage your shop on the go with the SmartOps mobile app.</p>
             </section>
         </main>
     );

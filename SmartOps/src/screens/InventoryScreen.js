@@ -231,7 +231,7 @@ export default function InventoryScreen({ navigation }) {
                         />
                         <GhostButton
                             label="Add stock for this product"
-                            onPress={() => { setEditing(null); navigation.navigate('StockIn'); }}
+                            onPress={() => { const id = editing.id; setEditing(null); navigation.navigate('StockIn', { productId: id }); }}
                             style={{ marginTop: spacing.sm }}
                         />
                     </View>
