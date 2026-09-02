@@ -1,552 +1,320 @@
 # SmartOps
 
-SmartOps is a full-stack inventory and sales management system for small businesses such as kirana stores. It combines a React Native mobile application with a Node.js and PostgreSQL backend to support product management, stock tracking, sales recording, customer management, and barcode-assisted workflows.
+SmartOps is a full-stack, offline-first inventory and sales management system for small Indian retail businesses such as kirana stores and pharmacies. It combines a React Native mobile app for shopkeepers, a Node.js + PostgreSQL backend, and a React web dashboard for business owners.
 
-The system is designed as an offline-first application. The mobile app persists data locally using WatermelonDB, allows users to continue working without connectivity, and synchronizes changes with the backend when the device reconnects.
+The mobile app is **offline-first**: it persists data locally with WatermelonDB, lets the shopkeeper keep working without connectivity, and synchronizes with the backend when the device reconnects. The backend is the durable system of record and also powers an analytics dashboard for owners.
+
+The system is deployed and running end-to-end: a live API on AWS behind Nginx with HTTPS, and a hosted web dashboard.
+
+---
+
+## Applications
+
+| App | Path | Stack | Purpose |
+|-----|------|-------|---------|
+| Mobile | `SmartOps/` | React Native + Expo + WatermelonDB | Shopkeeper's day-to-day tool (sales, stock, khata, alerts) |
+| Backend | `backend/` | Node.js + Express + PostgreSQL | REST API, sync, analytics — system of record |
+| Dashboard | `dashboard/` | React + Vite | Owner's analytics & inventory-intelligence view |
+
+---
+
+## Deployment
+
+SmartOps runs as a production deployment (not just local dev):
+
+- **Backend + database — AWS EC2 (Ubuntu).** The Express API is managed by **PM2** (auto-restart, wired into systemd so it survives reboots). **PostgreSQL** runs on the same instance and is **not** exposed to the public internet.
+- **Reverse proxy + TLS — Nginx.** Nginx sits in front of the API, terminates **HTTPS** with a **Let's Encrypt** certificate (auto-renewed via Certbot), and is the only service exposed on ports 80/443. The Node process listens only on `localhost:3000`, so the application port is never directly reachable from the internet.
+- **Domain.** A DuckDNS subdomain maps to the instance. The public API base is `https://smartops-app.duckdns.org/api`.
+- **Dashboard — Vercel.** The React + Vite dashboard is built from this repository and deployed on Vercel, with the API base URL supplied as a build-time environment variable.
+- **CORS.** The API restricts browser origins to an `ALLOWED_ORIGINS` allowlist. The mobile app sends no browser origin and is unaffected.
+
+> The project was originally hosted on a managed platform (Railway) and later migrated to self-managed AWS EC2 for full control of the stack, a production-grade setup (own domain, HTTPS, process management), and hands-on cloud/DevOps experience.
+
+---
 
 ## Features
 
 ### Authentication
-
 - JWT-based business authentication with register and login flows
 - Business-scoped access control enforced by backend middleware
 - Multi-tenant data isolation using `business_id`
 
 ### Inventory Management
-
 - Product catalog with barcode, category, brand, unit, reorder level, and selling price
 - Stock batches with quantity, batch number, expiry date, and cost price
-- Stock transaction ledger for stock-in, sales, returns, and adjustments
-- Alerting support for low-stock, near-expiry, and expired-stock visibility based on current batch movement history
-- Read-only product APIs for inventory views, low-stock checks, and near-expiry queries
+- Append-only stock transaction ledger (stock-in, sale, wastage, return) — current stock is **derived** from this ledger, never a stored column
+- In-app **product editing** (fix selling price / reorder level), synced back to the server
+- **Wastage / expiry write-off** — record spoiled or expired stock so inventory stays accurate
+- Low-stock, near-expiry, and expired-stock alerts computed offline from batch movement history
 
-### Sales and Customers
+### Sales & Customers
+- Barcode-driven order entry with FEFO (first-expiry-first-out) batch selection
+- **Discount at checkout** — override an item's price at the point of sale (e.g. to clear near-expiry stock)
+- Line-item level tracking (product, batch, quantity, unit price); sale price is stored historically so later price edits never rewrite past revenue
+- Customer records with purchase activity and segmentation
+- Order history with date/payment filters, persisted locally for offline access
 
-- Sales order creation with order totals, payment mode, and sale timestamp
-- Line-item level tracking with product, batch, quantity, and unit price
-- Customer records with purchase activity and segmentation support
-- Sales and order history persisted locally for offline access
+### Khata (Customer Credit)
+- Append-only **credit ledger** (`credit_sale` / `repayment`) — a customer's outstanding balance is derived as `Σ credit_sale − Σ repayment`, so it is always auditable
+- A credit sale automatically books the receivable in the same atomic write as the order
+- Khata screen: outstanding-balance list, per-customer history, and repayment recording
+- Credit sales require a customer so the debt can be attributed
 
 ### Offline-First Sync
-
 - Local-first writes in the mobile app using WatermelonDB
-- Pull and push synchronization with backend timestamp checkpoints
-- Business-scoped sync payloads for products, stock, sales, and customers
-- Reconnect-triggered synchronization with persisted auth and business context
+- Pull/push synchronization with backend timestamp checkpoints
+- Push processes both **created and updated** records (an earlier bug dropped updates); writes are idempotent upserts, immutable financial rows use conflict-safe inserts
+- Business-scoped sync payloads for products, stock, sales, customers, and the credit ledger
+- Reconnect-triggered sync, a live connectivity indicator, and a manual "Sync now" action
 
-### Barcode and Lookup
+### Barcode & Lookup
+- Barcode lookup against business inventory, a seeded catalog, and an OpenFoodFacts fallback
+- Scanner **flashlight/torch toggle** and **manual barcode entry** for dim shops and damaged labels
 
-- Barcode lookup against business inventory
-- Barcode catalog lookup from a seeded product catalog
-- Fallback lookup using the OpenFoodFacts API
+### Analytics & Inventory Intelligence (backend)
+- Dashboard summary, sales trends (daily/weekly/monthly), top products, customer activity & segments
+- **Reorder suggestions** — what to reorder and how much, from blended sales velocity and stock cover
+- **Stock-out risk**, **expiry risk**, and **dead-stock / slow-mover** detection with value-at-risk
+- **Markdown suggestions** — a discount for slow stock that still clears a minimum margin over cost (never at a loss)
+- **Product opportunities** — assortment/category growth signals
+- A combined **inventory intelligence** endpoint that returns all of the above in one call
 
-### Analytics
+### Mobile "Smart Restock" & Daily Summary
+- **Smart Restock** surfaces the backend reorder engine on the phone; tapping a suggestion opens Stock In pre-filled
+- **Daily closing summary** — an offline end-of-day view: total collected, payment split, khata given vs repaid, and units written off
 
-- Dashboard summary endpoint
-- Sales analytics grouped by period
-- Top product reporting
-- Customer activity and segment statistics
+### Web Dashboard (owner)
+- **Business Overview** tab: KPI cards, a sales trend chart, payment mix, top products, and customer intelligence
+- **Inventory Intelligence** tab: reorder, stock-out risk, expiry risk, dead stock, opportunities, and markdown suggestions
+
+---
 
 ## Architecture Overview
 
-The repository is organized as a monorepo with two primary applications:
-
-- `SmartOps/`: React Native mobile app built with Expo
-- `backend/`: Node.js and Express API backed by PostgreSQL
-
-### Mobile App
-
-The mobile app stores operational data in WatermelonDB and treats the local database as the primary source of truth for UI interactions. Screens read from local collections and write to local tables through database actions. Sync is handled by a dedicated sync engine that pulls remote changes and pushes locally created records to the backend.
+### Mobile app
+Operational data lives in WatermelonDB and is the primary source of truth for UI interactions. Screens read from local collections and write through database actions. A dedicated sync engine reconciles local changes with the backend.
 
 ### Backend API
+Express REST endpoints for auth, sync, barcode lookup, read-only product views, and analytics. PostgreSQL is the system of record, partitioned by `business_id`, with JWT middleware on protected routes.
 
-The backend exposes REST endpoints for authentication, sync, barcode lookup, products, and analytics. PostgreSQL is used as the system-of-record database. Data is partitioned by `business_id`, and protected routes are authenticated using JWT middleware.
+### Dashboard
+A React + Vite SPA that authenticates against the same API and renders analytics from the backend's dashboard and inventory-intelligence endpoints.
 
-### Data Flow
+### Data flow
+1. The shopkeeper performs an action in the mobile app.
+2. The app writes to WatermelonDB immediately; the UI updates without a network round-trip.
+3. When online, the sync engine pushes local changes and pulls server-side changes since `lastPulledAt`.
+4. The backend persists changes to PostgreSQL inside a transaction and returns the delta.
+5. The owner's dashboard reads analytics computed from that same PostgreSQL data.
 
-1. A user performs an action in the mobile app.
-2. The app writes the change to WatermelonDB immediately.
-3. The UI updates from local state without requiring network access.
-4. When connectivity is available, the sync engine sends local changes to the backend.
-5. The backend persists those changes to PostgreSQL and returns any server-side updates since `lastPulledAt`.
-6. The mobile app merges the remote change set into the local database.
+---
 
 ## Tech Stack
 
-### Frontend
+**Mobile:** React Native, Expo, React Navigation, WatermelonDB (LokiJS adapter), AsyncStorage, NetInfo, expo-camera
 
-- React Native
-- Expo
-- React Navigation
-- WatermelonDB
-- AsyncStorage
-- NetInfo
+**Backend:** Node.js, Express, PostgreSQL (`pg`), JSON Web Tokens, bcryptjs, express-validator, helmet, cors, compression, express-rate-limit, morgan
 
-### Backend
+**Dashboard:** React, Vite, React Router
 
-- Node.js
-- Express
-- JSON Web Tokens
-- bcryptjs
-- express-validator
-- helmet
-- express-rate-limit
-- morgan
+**Infrastructure:** AWS EC2 (Ubuntu), Nginx (reverse proxy + TLS), Let's Encrypt / Certbot, PM2 + systemd, DuckDNS, Vercel (dashboard)
 
-### Database
+**Other:** OpenFoodFacts API (barcode fallback), Nodemon, ESLint, Prettier
 
-- PostgreSQL
-- WatermelonDB with LokiJS adapter in development
-- Planned SQLite-backed WatermelonDB adapter for production mobile storage
-
-### Other Tools
-
-- OpenFoodFacts API for barcode lookup fallback
-- Nodemon for backend development
-- ESLint and Prettier for code quality
+---
 
 ## Monorepo Structure
 
 ```text
 capstone/
 ├── README.md
-├── backend/
-│   ├── package.json
+├── backend/                     # Node.js + Express API
 │   └── src/
-│       ├── app.js
+│       ├── app.js               # middleware chain (helmet, CORS allowlist, rate limit)
 │       ├── server.js
-│       ├── controllers/
-│       │   ├── authController.js
-│       │   ├── barcodeController.js
-│       │   ├── productsController.js
-│       │   ├── syncController.js
-│       │   └── analyticsController.js
-│       ├── db/
-│       │   ├── pool.js
-│       │   └── migrate.js
-│       ├── middleware/
-│       │   ├── auth.js
-│       │   └── errors.js
-│       ├── routes/
-│       │   └── index.js
-│       └── scripts/
-│           ├── seedOpenFoodFacts.js
-│           └── seed_demo.js
-└── SmartOps/
+│       ├── controllers/         # auth, barcode, products, sync, analytics
+│       ├── db/                  # pool.js, migrate.js
+│       ├── middleware/          # auth.js, errors.js
+│       ├── routes/index.js
+│       └── scripts/            # seed_demo, seed_showcase, seedOpenFoodFacts
+├── dashboard/                   # React + Vite analytics dashboard
+│   └── src/
+│       ├── main.jsx, App.jsx
+│       ├── pages/              # LoginPage, DashboardPage
+│       ├── components/         # Shell, Panel, KpiCard, SegmentedControl,
+│       │                       #   SalesChart, PaymentDonut, StatusBlock
+│       ├── lib/                # api.js, format.js, session.js
+│       └── styles.css
+└── SmartOps/                    # React Native + Expo mobile app
     ├── App.js
-    ├── package.json
+    ├── components/             # UI.js, BarcodeScanner.js
     └── src/
-        ├── database/
-        │   ├── index.js
-        │   ├── schema.js
-        │   ├── actions.js
-        │   └── appInit.js
-        ├── models/
-        │   ├── Product.js
-        │   ├── StockBatch.js
-        │   ├── StockTransaction.js
-        │   ├── SaleOrder.js
-        │   ├── SaleItem.js
-        │   └── Customer.js
-        ├── screens/
-        ├── services/
-        ├── sync/
-        │   └── syncEngine.js
+        ├── database/           # index, schema, migrations, actions, appInit
+        ├── models/            # Product, StockBatch, StockTransaction,
+        │                       #   SaleOrder, SaleItem, Customer, LedgerEntry
+        ├── screens/           # Login, Home, NewOrder, StockIn,
+        │                       #   ProductRegistration, Alerts, Inventory,
+        │                       #   OrderHistory, Khata, DaySummary, Reorder
+        ├── services/api.js
+        ├── sync/syncEngine.js
         └── theme/
 ```
 
-### Key Directories
-
-- `backend/src/controllers`: Business logic for auth, sync, barcode, product, and analytics endpoints
-- `backend/src/db`: PostgreSQL connection pooling and SQL schema migration
-- `backend/src/routes`: Express route definitions
-- `SmartOps/src/database`: WatermelonDB adapter, schema, initialization, and write/query helpers
-- `SmartOps/src/models`: WatermelonDB model definitions for synced tables
-- `SmartOps/src/screens`: Mobile UI flows such as login, inventory, order entry, and history
-- `SmartOps/src/sync`: Sync engine that integrates WatermelonDB sync with backend endpoints
-- `SmartOps/src/services`: External API wrappers used by the mobile app
+---
 
 ## Setup Instructions
 
-### Backend Setup
-
-1. Install dependencies:
+### Backend
 
 ```bash
 cd backend
 npm install
+# create backend/.env (see Environment Variables), configure PostgreSQL
+npm run migrate      # create/upgrade tables (idempotent)
+npm run dev          # development (nodemon)
+# npm start          # production
 ```
 
-2. Create a `.env` file in `backend/`.
-
-3. Configure PostgreSQL and set `DATABASE_URL`.
-
-4. Run database migrations:
-
-```bash
-npm run migrate
-```
-
-5. Start the backend server:
-
-```bash
-npm run dev
-```
-
-For production:
-
-```bash
-npm start
-```
-
-Optional: seed demo business data after registering at least one business:
+Optional demo data (after at least one business exists):
 
 ```bash
 npm run seed:demo
+npm run seed:demo -- --reset   # replace the target business's operational data
 ```
 
-To replace the existing operational data for the target business:
+### Dashboard
 
 ```bash
-npm run seed:demo -- --reset
+cd dashboard
+npm install
+npm run dev          # http://localhost:5174 (set VITE_API_BASE_URL to your API)
+npm run build        # production build
 ```
 
-### Mobile App Setup
-
-1. Install dependencies:
+### Mobile app
 
 ```bash
 cd SmartOps
 npm install
+npm run start        # Expo dev server
+npm run android      # or: npm run ios
 ```
 
-2. Verify the API base URL in `SmartOps/src/sync/syncEngine.js` points to your backend.
+The mobile API base URL is set in `SmartOps/src/sync/syncEngine.js` (`API_BASE`). It points at the live server by default.
 
-3. Start the Expo development server:
-
-```bash
-npm run start
-```
-
-4. Run on Android:
-
-```bash
-npm run android
-```
-
-5. Run on iOS:
-
-```bash
-npm run ios
-```
-
-### Notes on Local Database
-
-- The current development setup uses WatermelonDB with a LokiJS adapter.
-- SQLite support is already included through Expo dependencies and is the intended production storage path.
-- Development behavior may differ from production persistence characteristics until the SQLite adapter is adopted.
+---
 
 ## Environment Variables
 
-### Backend
+### Backend (`backend/.env`)
+Required:
+- `DATABASE_URL` — PostgreSQL connection string
+- `JWT_SECRET` — secret used to sign JWTs
 
-The backend requires the following environment variables:
+Optional:
+- `PORT` (default `3000`), `NODE_ENV`, `JWT_EXPIRES_IN` (default `30d`)
+- `ALLOWED_ORIGINS` — comma-separated browser origins allowed by CORS (defaults to `http://localhost:5173`)
+- `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX`
+- `SEED_BUSINESS_ID`, `SEED_RESET`
 
-- `DATABASE_URL`: PostgreSQL connection string
-- `JWT_SECRET`: Secret used to sign JWTs
+### Dashboard
+- `VITE_API_BASE_URL` — API base (e.g. `https://smartops-app.duckdns.org/api`); falls back to `http://localhost:3000/api`
 
-The following are optional but supported by the current codebase:
+### Mobile
+- No `.env`; the API base lives in `SmartOps/src/sync/syncEngine.js`.
 
-- `PORT`: HTTP server port, defaults to `3000`
-- `NODE_ENV`: Runtime environment
-- `JWT_EXPIRES_IN`: JWT expiration window, defaults to `30d`
-- `RATE_LIMIT_WINDOW_MS`: Rate limit window in milliseconds
-- `RATE_LIMIT_MAX`: Maximum requests per window
-- `SEED_BUSINESS_ID`: Explicit business id to target when running `seed:demo`
-- `SEED_RESET`: Set to `true` to clear the target business's operational data before seeding
+---
 
-### Mobile App
+## Database
 
-There is no dedicated `.env` file currently wired into the mobile app. The backend base URL is configured directly in:
+### Backend (PostgreSQL) tables
+`businesses`, `products`, `stock_batches`, `stock_transactions`, `customers`, `sale_orders`, `sale_items`, `barcode_catalog`, `ledger_entries` (khata credit ledger).
 
-- `SmartOps/src/sync/syncEngine.js`
+### Schema notes
+- Sync-critical timestamps are stored as `BIGINT` Unix milliseconds (`updated_at`, `sale_at`, `txn_at`, `expiry_date`, `last_purchase_at`, `entry_at`).
+- Business data is partitioned by `business_id` for multi-tenant isolation.
+- Current stock and customer balances are **derived** from append-only ledgers (stock transactions / credit entries), not stored columns.
 
-## Database Schema Notes
+### Mobile (WatermelonDB)
+- Local schema is at **version 3**; a non-destructive migration adds the `ledger_entries` table for existing installs.
+- Development uses the LokiJS adapter; a SQLite-backed adapter is the intended production storage path.
 
-- The backend stores sync-critical timestamps as `BIGINT` Unix milliseconds.
-- Examples include `updated_at`, `sale_at`, `txn_at`, `expiry_date`, and `last_purchase_at`.
-- Business data is partitioned by `business_id` to support multi-tenant isolation.
-- Sync payloads use backend column names such as `selling_price`, `unit_price`, and `sale_at`.
+---
 
 ## Sync System
 
-The sync system follows WatermelonDB's pull/push model.
+The sync engine follows WatermelonDB's pull/push model.
 
-### pullChanges
+- **`GET /sync/pull?last_pulled_at=<unix_ms>`** — returns all rows changed after the checkpoint for the authenticated business, grouped by table.
+- **`POST /sync/push`** — accepts a WatermelonDB change set and persists it inside a single PostgreSQL transaction. Both `created` and `updated` buckets are processed; upserts (`ON CONFLICT DO UPDATE`) make re-pushes idempotent, while immutable financial rows (orders, sale items, ledger entries) use conflict-safe inserts (`ON CONFLICT DO NOTHING`).
+- **`lastPulledAt`** — the client checkpoint for the last successful pull.
 
-- The mobile app calls `GET /sync/pull?last_pulled_at=<unix_ms>`.
-- The backend returns all rows updated after `last_pulled_at` for the authenticated business.
-- The response contains a `timestamp` and a `changes` object grouped by table.
+### Conflict handling
+- Master data (products, customers, batches) uses last-write-wins upserts.
+- Sales, sale items, and ledger entries are append-only / immutable after creation.
+- Deletions are not processed as destructive SQL deletes (soft-delete via an update is the intended path).
 
-### pushChanges
-
-- The mobile app calls `POST /sync/push` with a WatermelonDB change set.
-- The backend processes the incoming changes inside a PostgreSQL transaction.
-- Inserts use idempotent upsert or conflict-safe insert patterns depending on the table.
-
-### lastPulledAt
-
-- `lastPulledAt` is the client's checkpoint for the last successful pull.
-- It is used to request only server-side changes that occurred after the previous sync window.
-
-### Conflict Handling Assumptions
-
-- The current implementation assumes simple last-write and append-only workflows for most records.
-- Orders and sale items are effectively treated as immutable after creation.
-- Products and customers are updated through upsert semantics.
-- There is no advanced per-field conflict resolution strategy yet.
+---
 
 ## API Overview
 
-All API routes are mounted under `/api`.
+All routes are mounted under `/api`. Protected routes require `Authorization: Bearer <jwt>`.
 
 ### Auth
-
-#### `POST /auth/register`
-
-Registers a new business and returns a JWT plus business metadata.
-
-Example request:
-
-```http
-POST /api/auth/register
-Content-Type: application/json
-
-{
-  "name": "My Store",
-  "phone": "9999999999",
-  "password": "secret123",
-  "type": "kirana"
-}
-```
-
-Example response:
-
-```json
-{
-  "token": "<jwt>",
-  "business": {
-    "id": "uuid",
-    "name": "My Store",
-    "phone": "9999999999",
-    "type": "kirana",
-    "created_at": "..."
-  }
-}
-```
-
-#### `POST /auth/login`
-
-Authenticates an existing business and returns a JWT.
-
-Example request:
+- `POST /auth/register` — register a business, returns a JWT + business metadata
+- `POST /auth/login` — authenticate, returns a JWT + business metadata
 
 ```http
 POST /api/auth/login
 Content-Type: application/json
 
-{
-  "phone": "9999999999",
-  "password": "secret123"
-}
-```
-
-Example response:
-
-```json
-{
-  "token": "<jwt>",
-  "business": {
-    "id": "uuid",
-    "name": "My Store",
-    "phone": "9999999999",
-    "type": "kirana"
-  }
-}
+{ "phone": "9999999999", "password": "secret123" }
 ```
 
 ### Sync
-
-#### `GET /sync/pull`
-
-Returns server-side changes since the supplied timestamp for the authenticated business.
-
-Example request:
-
-```http
-GET /api/sync/pull?last_pulled_at=1710000000000
-Authorization: Bearer <jwt>
-```
-
-Example response:
-
-```json
-{
-  "timestamp": 1710000100000,
-  "changes": {
-    "products": {
-      "created": [],
-      "updated": [],
-      "deleted": []
-    }
-  }
-}
-```
-
-#### `POST /sync/push`
-
-Accepts a WatermelonDB change set and persists it for the authenticated business.
-
-Example request:
-
-```http
-POST /api/sync/push
-Authorization: Bearer <jwt>
-Content-Type: application/json
-
-{
-  "changes": {
-    "products": {
-      "created": [],
-      "updated": [],
-      "deleted": []
-    }
-  },
-  "lastPulledAt": 1710000000000
-}
-```
-
-Example response:
-
-```json
-{
-  "success": true,
-  "synced_at": 1710000200000
-}
-```
+- `GET /sync/pull?last_pulled_at=<unix_ms>`
+- `POST /sync/push`
 
 ### Barcode
+- `GET /barcode/:code` — inventory → seeded catalog → OpenFoodFacts fallback
+- `GET /barcode/search?q=<query>` — name search in the catalog
 
-#### `GET /barcode/:code`
-
-Looks up a barcode in business inventory, local catalog, or OpenFoodFacts.
-
-Example request:
-
-```http
-GET /api/barcode/8901030893346
-Authorization: Bearer <jwt>
-```
-
-Example response:
-
-```json
-{
-  "source": "catalog",
-  "suggestion": {
-    "barcode": "8901030893346",
-    "name": "Aashirvaad Atta 5kg",
-    "brand": "Aashirvaad",
-    "category": "Atta & Flour",
-    "quantity": "5kg"
-  }
-}
-```
+### Products (read-only; writes happen via sync)
+- `GET /products`, `GET /products/:id`
+- `GET /products/low-stock`, `GET /products/near-expiry?days=30`
 
 ### Analytics
+- `GET /analytics/dashboard` — today's orders/revenue, alert counts, top products
+- `GET /analytics/sales?period=daily|weekly|monthly`
+- `GET /analytics/top-products?limit=10`
+- `GET /analytics/customers` — activity summary + per-customer segments
 
-#### `GET /analytics/dashboard`
+### Inventory Intelligence
+- `GET /analytics/inventory/reorder-suggestions`
+- `GET /analytics/inventory/stock-risk`
+- `GET /analytics/inventory/expiry-risk`
+- `GET /analytics/inventory/dead-stock`
+- `GET /analytics/inventory/opportunities`
+- `GET /analytics/inventory/markdowns` — still-profitable discount suggestions
+- `GET /analytics/inventory/intelligence` — all of the above in one response
 
-Returns dashboard summary data for the authenticated business.
-
-Example response:
-
-```json
-{
-  "today": {
-    "orders": 4,
-    "revenue": 1250
-  },
-  "alerts": {
-    "low_stock": 3,
-    "near_expiry": 1
-  },
-  "top_products_week": []
-}
-```
-
-#### `GET /analytics/sales`
-
-Returns revenue and order totals grouped by `daily`, `weekly`, or `monthly` period.
-
-#### `GET /analytics/top-products`
-
-Returns top-selling products for the recent reporting window.
-
-#### `GET /analytics/customers`
-
-Returns customer activity summary and customer-level segment data.
-
-## Frontend Structure
-
-### `screens/`
-
-Contains mobile UI screens such as login, home dashboard, inventory, stock-in, product registration, new order, alerts, and order history.
-
-### `database/`
-
-Contains the WatermelonDB setup:
-
-- `schema.js`: table definitions
-- `index.js`: database and adapter initialization
-- `actions.js`: local write and query helpers
-- `appInit.js`: app bootstrapping and DB warm-up
-
-### `models/`
-
-Defines WatermelonDB model classes used by the app, including field decorators and relationships for products, batches, transactions, sales, items, and customers.
-
-### `sync/`
-
-Contains the sync engine responsible for:
-
-- restoring auth and business context
-- connecting WatermelonDB sync to backend endpoints
-- pulling and pushing changes
-- triggering sync after writes and on reconnect
-
-### `services/`
-
-Contains service wrappers for API access outside the sync engine, such as barcode lookup support.
+---
 
 ## Development Notes
+- The mobile app uses the LokiJS WatermelonDB adapter in development; production persistence characteristics differ until a SQLite adapter is adopted.
+- Sync requires a valid JWT and a restored `businessId` on the device before it will run.
+- Alerts (low-stock / expiry) are computed from local records so they work offline.
+- The demo seed script creates products, batches, sales, customers, returns, wastage, and low-stock / near-expiry / expired scenarios for testing and demos.
 
-- The current development adapter uses LokiJS for WatermelonDB persistence.
-- Development persistence behavior can differ from a production SQLite-backed adapter.
-- Sync requires a valid JWT and a valid `businessId` restored on the device before synchronization will run.
-- The backend is the source of truth for durable persisted data; the mobile app is optimized for resilient local operation first.
-- Alert counts are driven from local WatermelonDB records and batch movement history, so low-stock and expiry indicators work offline.
-- The demo seed script creates products, batches, sales, customers, returns, wastage, low-stock, near-expiry, and expired-stock scenarios for UI testing and demos.
+---
 
-## Future Improvements
+## Roadmap
 
-- Migrate WatermelonDB storage from LokiJS development setup to SQLite for production
-- Introduce stronger conflict resolution beyond current upsert and immutable-record assumptions
-- Improve background sync scheduling and retry behavior
-- Move mobile API configuration to environment-based app config
-- Add sync observability and operational diagnostics for production deployments
-- Build a web dashboard for business owners with analytics, operational summaries, and reporting views
-- Add richer analytics modules such as trend charts, payment breakdowns, top products, and inventory health metrics
-- Expand CRM capabilities with customer profiles, purchase history, segment-based views, and retention insights
-- Add customer engagement workflows such as follow-up reminders, loyalty tracking, and repeat-customer reporting
-- Support admin-oriented inventory workflows such as reorder recommendations, supplier tracking, and stock adjustment audit trails
+Delivered since the initial version: AWS EC2 + Nginx + HTTPS deployment, the web analytics dashboard, inventory-intelligence modules (reorder, stock/expiry risk, dead stock, opportunities, markdowns), the khata credit ledger, wastage write-off, and various UX and reliability improvements.
+
+Planned next:
+- Migrate mobile storage from LokiJS to a SQLite-backed WatermelonDB adapter
+- Automated test coverage (sync mapping and analytics math first)
+- Stronger multi-device conflict resolution and background-sync retry/observability
+- GST invoicing / receipts, supplier & purchase-order tracking, staff (cashier) accounts
+- Push notifications for low-stock and expiry alerts
