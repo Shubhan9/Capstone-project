@@ -134,21 +134,28 @@ export default function HomeScreen({ navigation, name }) {
                         <Text style={s.emptyActivityText}>No orders yet — tap + to make your first sale</Text>
                     </View>
                 ) : (
-                    recentOrders.map(order => (
-                        <TouchableOpacity
-                            key={order.id}
-                            style={s.activityRow}
-                            onPress={() => navigation.navigate('OrderHistory')}
-                            activeOpacity={0.75}
-                        >
-                            <View style={[s.activityStripe, { backgroundColor: paymentColor(order.paymentMode) }]} />
-                            <View style={s.activityMain}>
-                                <Text style={s.activityId}>#{order.id.slice(-6).toUpperCase()}</Text>
-                                <Text style={s.activityTime}>{formatTime(order.saleAt)}</Text>
-                            </View>
-                            <Text style={s.activityAmount}>₹{order.totalAmount.toFixed(0)}</Text>
-                        </TouchableOpacity>
-                    ))
+                    recentOrders.map(({ order, itemCount, customerName }) => {
+                        const isCredit = order.paymentMode === 'credit';
+                        return (
+                            <TouchableOpacity
+                                key={order.id}
+                                style={s.activityRow}
+                                onPress={() => navigation.navigate('OrderHistory')}
+                                activeOpacity={0.75}
+                            >
+                                <View style={[s.activityStripe, { backgroundColor: paymentColor(order.paymentMode) }]} />
+                                <View style={s.activityMain}>
+                                    <Text style={s.activityPrimary} numberOfLines={1}>
+                                        {isCredit ? (customerName || 'Khata sale') : `${itemCount} item${itemCount === 1 ? '' : 's'}`}
+                                    </Text>
+                                    <Text style={s.activityTime}>
+                                        {order.paymentMode.toUpperCase()} · {formatDateTime(order.saleAt)}
+                                    </Text>
+                                </View>
+                                <Text style={s.activityAmount}>₹{order.totalAmount.toFixed(0)}</Text>
+                            </TouchableOpacity>
+                        );
+                    })
                 )}
             </ScrollView>
         </View>
@@ -162,8 +169,21 @@ function getGreeting() {
     return 'evening';
 }
 
-function formatTime(ms) {
-    return new Date(ms).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+// The list is sorted correctly (newest sale_at first) even when it spans
+// multiple days — but a bare time-of-day (e.g. "5:32 PM") looks unsorted
+// once entries cross a day boundary. Naming the day removes the ambiguity.
+function formatDateTime(ms) {
+    const d = new Date(ms);
+    const now = new Date();
+    const time = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+    if (d.toDateString() === now.toDateString()) return `Today, ${time}`;
+
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    if (d.toDateString() === yesterday.toDateString()) return `Yesterday, ${time}`;
+
+    return `${d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}, ${time}`;
 }
 
 const s = StyleSheet.create({
@@ -239,7 +259,7 @@ const s = StyleSheet.create({
     },
     activityStripe: { width: 4, alignSelf: 'stretch' },
     activityMain: { flex: 1, padding: spacing.md },
-    activityId: { color: colors.textPrimary, fontSize: font.sm, fontWeight: '700', marginBottom: 2 },
+    activityPrimary: { color: colors.textPrimary, fontSize: font.sm, fontWeight: '700', marginBottom: 2 },
     activityTime: { color: colors.textMuted, fontSize: font.xs },
     activityAmount: { color: colors.textPrimary, fontSize: font.md, fontWeight: '700', paddingRight: spacing.md },
 });
