@@ -501,6 +501,19 @@ export async function getTodaySales() {
     return { count: orders.length, total };
 }
 
+// Most recent orders for Home's "recent activity" glance — same shape as
+// Order History's query, just capped and newest-first.
+export async function getRecentOrders(limit = 4) {
+    const bId = getBusinessId();
+    return database.get('sale_orders')
+        .query(
+            Q.where('business_id', bId),
+            Q.sortBy('sale_at', Q.desc),
+            Q.take(limit)
+        )
+        .fetch();
+}
+
 // End-of-day closing summary, computed entirely from the local DB (works offline).
 export async function getDaySummary() {
     const bId = getBusinessId();

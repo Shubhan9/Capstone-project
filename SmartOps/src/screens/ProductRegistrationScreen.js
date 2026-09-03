@@ -8,6 +8,7 @@ import { registerProduct, getProductByBarcode } from '../database/actions';
 import { BarcodeAPI } from '../services/api';
 import BarcodeScanner from '../../components/BarcodeScanner';
 import { PrimaryButton, GhostButton, Card } from '../../components/UI';
+import { AppIcon } from '../theme/icons';
 import { colors, spacing, radius, font } from '../theme';
 
 const CATEGORIES = ['Grocery', 'Beverage', 'Snack', 'Dairy', 'Medicine', 'Personal Care', 'Household', 'Other'];
@@ -45,8 +46,8 @@ export default function ProductRegistrationScreen({ navigation, route }) {
         const existing = await getProductByBarcode(barcode);
         if (existing) {
             Alert.alert('Already registered', `${existing.name} is already in your inventory.`, [
-                { text: 'View inventory', onPress: () => navigation.navigate('Inventory') },
-                { text: 'Cancel', style: 'cancel', onPress: () => navigation.navigate('Home') },
+                { text: 'View inventory', onPress: () => navigation.navigate('MainTabs', { screen: 'Inventory' }) },
+                { text: 'Cancel', style: 'cancel', onPress: () => navigation.navigate('MainTabs', { screen: 'Home' }) },
             ]);
             return;
         }
@@ -156,7 +157,7 @@ export default function ProductRegistrationScreen({ navigation, route }) {
                         keyboardType="numeric"
                     />
                     <TouchableOpacity style={s.scanIconBtn} onPress={() => setScanning(true)}>
-                        <Text style={s.scanIconBtnText}>▣</Text>
+                        <AppIcon name="scan" size="chip" color={colors.bg} />
                     </TouchableOpacity>
                 </View>
 
@@ -304,7 +305,6 @@ const s = StyleSheet.create({
         borderRadius: radius.md, width: 50,
         alignItems: 'center', justifyContent: 'center',
     },
-    scanIconBtnText: { fontSize: 22, color: colors.bg },
 
     input: {
         backgroundColor: colors.bgInput,
