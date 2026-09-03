@@ -46,7 +46,14 @@ export default function ProfileScreen({ navigation, name, onLogout }) {
                 <View style={s.avatar}>
                     <Text style={s.avatarInitial}>{name.charAt(0).toUpperCase()}</Text>
                 </View>
-                <Text style={s.shopName} numberOfLines={1}>{name}</Text>
+                <Text
+                    style={s.shopName}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.6}
+                >
+                    {name}
+                </Text>
                 <View style={s.statusRow}>
                     <View style={[s.statusDot, { backgroundColor: online ? colors.teal : colors.textMuted }]} />
                     <Text style={s.statusText}>{online ? 'Online' : 'Offline · saved on device'}</Text>

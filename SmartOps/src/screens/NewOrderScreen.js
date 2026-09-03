@@ -356,9 +356,12 @@ export default function NewOrderScreen({ navigation }) {
                         )}
 
                         {existingBalance !== null && existingBalance > 0 && (
-                            <Text style={s.balanceHint}>
-                                📒 Existing khata balance: ₹{existingBalance.toFixed(2)}
-                            </Text>
+                            <View style={s.balanceHint}>
+                                <AppIcon name="khata" size="inline" color={colors.amber} />
+                                <Text style={s.balanceHintText}>
+                                    Existing khata balance: ₹{existingBalance.toFixed(2)}
+                                </Text>
+                            </View>
                         )}
 
                         {/* Payment mode */}
@@ -568,9 +571,10 @@ const s = StyleSheet.create({
     },
 
     balanceHint: {
-        color: colors.amber, fontSize: font.sm, fontWeight: '600',
+        flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
         marginTop: -spacing.md, marginBottom: spacing.lg,
     },
+    balanceHintText: { color: colors.amber, fontSize: font.sm, fontWeight: '600' },
 
     customerChip: {
         flexDirection: 'row', alignItems: 'center',
