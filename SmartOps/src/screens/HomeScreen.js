@@ -52,14 +52,7 @@ export default function HomeScreen({ navigation, name }) {
                 <View style={s.header}>
                     <View style={s.headerLeft}>
                         <Text style={s.greeting}>Good {getGreeting()} 👋</Text>
-                        <Text
-                            style={s.shopName}
-                            numberOfLines={1}
-                            adjustsFontSizeToFit
-                            minimumFontScale={0.6}
-                        >
-                            {name}
-                        </Text>
+                        <Text style={s.shopName}>{name}</Text>
                     </View>
                     <TouchableOpacity
                         style={s.profileBtn}

@@ -46,14 +46,7 @@ export default function ProfileScreen({ navigation, name, onLogout }) {
                 <View style={s.avatar}>
                     <Text style={s.avatarInitial}>{name.charAt(0).toUpperCase()}</Text>
                 </View>
-                <Text
-                    style={s.shopName}
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.6}
-                >
-                    {name}
-                </Text>
+                <Text style={s.shopName}>{name}</Text>
                 <View style={s.statusRow}>
                     <View style={[s.statusDot, { backgroundColor: online ? colors.teal : colors.textMuted }]} />
                     <Text style={s.statusText}>{online ? 'Online' : 'Offline · saved on device'}</Text>
@@ -97,7 +90,7 @@ const s = StyleSheet.create({
         marginBottom: spacing.md,
     },
     avatarInitial: { color: colors.textPrimary, fontSize: font.xxl, fontWeight: '700' },
-    shopName: { color: colors.white, fontSize: font.xl, fontWeight: '800' },
+    shopName: { color: colors.white, fontSize: font.xl, fontWeight: '800', textAlign: 'center' },
     statusRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: spacing.sm },
     statusDot: { width: 7, height: 7, borderRadius: 4 },
     statusText: { color: colors.textMuted, fontSize: font.sm, fontWeight: '600' },
