@@ -4,8 +4,10 @@ import {
     TextInput, StyleSheet, Alert, Modal, KeyboardAvoidingView, Platform, Keyboard,
 } from 'react-native';
 import { getProductByBarcode, recordSale, searchCustomers, createCustomer, updateCustomerDetails, getCustomerBalance } from '../database/actions';
+import { useAppBadges } from '../hooks/useAppBadges';
 import BarcodeScanner from '../../components/BarcodeScanner';
 import { Card, PrimaryButton, GhostButton, Divider, EmptyState } from '../../components/UI';
+import { AppIcon } from '../theme/icons';
 import { colors, spacing, radius, font } from '../theme';
 
 export default function NewOrderScreen({ navigation }) {
@@ -17,6 +19,7 @@ export default function NewOrderScreen({ navigation }) {
     const [creditPhone, setCreditPhone] = useState('');            // inline phone capture, only when credit needs one
     const [paymentMode, setPaymentMode] = useState('cash');
     const [loading, setLoading] = useState(false);
+    const { refresh: refreshBadges } = useAppBadges();
     const [notFoundBarcode, setNotFoundBarcode] = useState(null);  // triggers "add product?" prompt
     const [draftPriceItem, setDraftPriceItem] = useState(null);    // triggers "set price" prompt for legacy test data
     const [existingBalance, setExistingBalance] = useState(null);  // current khata balance for the selected customer
@@ -204,6 +207,7 @@ export default function NewOrderScreen({ navigation }) {
                     unitPrice: i.unitPrice,
                 })),
             });
+            refreshBadges();
 
             Alert.alert(
                 'Order complete',
@@ -253,14 +257,14 @@ export default function NewOrderScreen({ navigation }) {
 
                 {/* Scan button */}
                 <TouchableOpacity style={s.scanBtn} onPress={() => setScanning(true)} activeOpacity={0.8}>
-                    <Text style={s.scanIcon}>▣</Text>
+                    <AppIcon name="scan" size="chip" color={colors.teal} />
                     <Text style={s.scanLabel}>Scan barcode to add item</Text>
                     <Text style={s.scanHint}>or tap item below to adjust qty</Text>
                 </TouchableOpacity>
 
                 {/* Cart */}
                 {cart.length === 0 ? (
-                    <EmptyState icon="🛒" title="Cart is empty" subtitle="Scan a product barcode to start" />
+                    <EmptyState icon={<AppIcon name="cart" size={40} color={colors.textMuted} />} title="Cart is empty" subtitle="Scan a product barcode to start" />
                 ) : (
                     <>
                         <Text style={s.sectionLabel}>ITEMS  ·  {cart.length}</Text>
@@ -276,7 +280,7 @@ export default function NewOrderScreen({ navigation }) {
                                         </TouchableOpacity>
                                     </View>
                                     <TouchableOpacity onPress={() => removeItem(i)} style={s.removeBtn}>
-                                        <Text style={s.removeText}>✕</Text>
+                                        <AppIcon name="close" size="inline" color={colors.red} />
                                     </TouchableOpacity>
                                 </View>
                                 <View style={s.cartItemBottom}>
@@ -310,7 +314,7 @@ export default function NewOrderScreen({ navigation }) {
                                     )}
                                 </View>
                                 <TouchableOpacity onPress={clearCustomer} style={{ padding: spacing.xs }}>
-                                    <Text style={s.customerChipClear}>✕</Text>
+                                    <AppIcon name="close" size="inline" color={colors.red} />
                                 </TouchableOpacity>
                             </View>
                         ) : (
@@ -352,9 +356,12 @@ export default function NewOrderScreen({ navigation }) {
                         )}
 
                         {existingBalance !== null && existingBalance > 0 && (
-                            <Text style={s.balanceHint}>
-                                📒 Existing khata balance: ₹{existingBalance.toFixed(2)}
-                            </Text>
+                            <View style={s.balanceHint}>
+                                <AppIcon name="khata" size="inline" color={colors.amber} />
+                                <Text style={s.balanceHintText}>
+                                    Existing khata balance: ₹{existingBalance.toFixed(2)}
+                                </Text>
+                            </View>
                         )}
 
                         {/* Payment mode */}
@@ -525,7 +532,6 @@ const s = StyleSheet.create({
         alignItems: 'center', gap: 4,
         marginBottom: spacing.xl,
     },
-    scanIcon: { fontSize: 32, color: colors.teal, marginBottom: 6 },
     scanLabel: { color: colors.teal, fontSize: font.md, fontWeight: '700' },
     scanHint: { color: colors.textMuted, fontSize: font.sm },
 
@@ -542,7 +548,6 @@ const s = StyleSheet.create({
     cartItemSub: { color: colors.textMuted, fontSize: font.sm },
     editPriceLink: { color: colors.teal, fontWeight: '600' },
     removeBtn: { padding: spacing.xs },
-    removeText: { color: colors.red, fontSize: font.md, fontWeight: '600' },
     cartItemBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
 
     qtyControl: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
@@ -566,9 +571,10 @@ const s = StyleSheet.create({
     },
 
     balanceHint: {
-        color: colors.amber, fontSize: font.sm, fontWeight: '600',
+        flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
         marginTop: -spacing.md, marginBottom: spacing.lg,
     },
+    balanceHintText: { color: colors.amber, fontSize: font.sm, fontWeight: '600' },
 
     customerChip: {
         flexDirection: 'row', alignItems: 'center',
@@ -578,7 +584,6 @@ const s = StyleSheet.create({
     },
     customerChipName: { color: colors.textPrimary, fontSize: font.md, fontWeight: '700' },
     customerChipSub: { color: colors.textMuted, fontSize: font.xs, marginTop: 2 },
-    customerChipClear: { color: colors.red, fontSize: font.md, fontWeight: '600' },
 
     customerDropdown: {
         backgroundColor: colors.bgInput,

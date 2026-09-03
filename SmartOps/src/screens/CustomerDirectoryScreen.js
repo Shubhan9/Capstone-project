@@ -9,6 +9,7 @@ import {
     getCustomerBalance, getCustomerOrderSummary,
 } from '../database/actions';
 import { PrimaryButton, GhostButton, EmptyState } from '../../components/UI';
+import { AppIcon } from '../theme/icons';
 import { colors, spacing, radius, font } from '../theme';
 
 export default function CustomerDirectoryScreen({ navigation }) {
@@ -123,7 +124,7 @@ export default function CustomerDirectoryScreen({ navigation }) {
 
                 {filtered.length === 0 ? (
                     <EmptyState
-                        icon="👥"
+                        icon={<AppIcon name="customers" size={40} color={colors.textMuted} />}
                         title="No customers yet"
                         subtitle="Add one here, or they'll be added automatically during a sale."
                     />
@@ -136,7 +137,7 @@ export default function CustomerDirectoryScreen({ navigation }) {
                                     {[c.phone, c.address].filter(Boolean).join(' · ') || 'No phone or address on file'}
                                 </Text>
                             </View>
-                            <Text style={s.chevron}>›</Text>
+                            <AppIcon name="chevron" size="inline" />
                         </TouchableOpacity>
                     ))
                 )}
@@ -154,7 +155,7 @@ export default function CustomerDirectoryScreen({ navigation }) {
                             <View style={s.modalHeader}>
                                 <Text style={s.modalTitle}>{editing?.id ? 'Edit Customer' : 'Add Customer'}</Text>
                                 <TouchableOpacity onPress={closeModal}>
-                                    <Text style={s.modalClose}>✕</Text>
+                                    <AppIcon name="close" size="chip" color={colors.red} />
                                 </TouchableOpacity>
                             </View>
 

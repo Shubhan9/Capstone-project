@@ -6,6 +6,8 @@ import {
 import { getProductByBarcode, recordStockIn, getProductById } from '../database/actions';
 import BarcodeScanner from '../../components/BarcodeScanner';
 import { Card, PrimaryButton, GhostButton } from '../../components/UI';
+import { useAppBadges } from '../hooks/useAppBadges';
+import { AppIcon } from '../theme/icons';
 import { colors, spacing, radius, font } from '../theme';
 
 const INIT_FORM = {
@@ -17,6 +19,7 @@ export default function StockInScreen({ navigation, route }) {
     const [product, setProduct] = useState(null);
     const [form, setForm] = useState(INIT_FORM);
     const [loading, setLoading] = useState(false);
+    const { refresh: refreshBadges } = useAppBadges();
 
     // Pre-select the product when opened from an alert/inventory ("Record stock-in"),
     // so the user isn't forced to re-scan something already in the catalog.
@@ -83,6 +86,7 @@ export default function StockInScreen({ navigation, route }) {
                 expiryDate: expiry,
                 costPrice: parseFloat(costPrice) || 0,
             });
+            refreshBadges();
 
             Alert.alert(
                 'Stock recorded ✓',
@@ -144,7 +148,7 @@ export default function StockInScreen({ navigation, route }) {
                         </Card>
                     ) : (
                         <TouchableOpacity style={s.scanBtn} onPress={() => setScanning(true)} activeOpacity={0.8}>
-                            <Text style={s.scanIcon}>▣</Text>
+                            <AppIcon name="scan" size="chip" color={colors.blue} />
                             <Text style={s.scanLabel}>Scan product barcode</Text>
                         </TouchableOpacity>
                     )}
@@ -259,7 +263,6 @@ const s = StyleSheet.create({
         paddingVertical: spacing.xxl,
         alignItems: 'center', gap: spacing.sm,
     },
-    scanIcon: { fontSize: 28, color: colors.blue },
     scanLabel: { color: colors.blue, fontSize: font.md, fontWeight: '700' },
 
     productCard: { borderColor: colors.teal + '40' },

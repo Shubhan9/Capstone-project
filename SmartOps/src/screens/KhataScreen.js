@@ -9,6 +9,8 @@ import {
     getOutstandingCustomers, getCustomerLedger, recordRepayment,
 } from '../database/actions';
 import { PrimaryButton, GhostButton, EmptyState } from '../../components/UI';
+import { useAppBadges } from '../hooks/useAppBadges';
+import { AppIcon } from '../theme/icons';
 import { colors, spacing, radius, font } from '../theme';
 
 export default function KhataScreen({ navigation }) {
@@ -19,11 +21,19 @@ export default function KhataScreen({ navigation }) {
     const [loadingLedger, setLoadingLedger] = useState(false);
     const [payAmount, setPayAmount] = useState('');
     const [saving, setSaving] = useState(false);
+    const { refresh: refreshBadges, markKhataSeen } = useAppBadges();
 
     const load = useCallback(async () => {
         const outstanding = await getOutstandingCustomers();
         setRows(outstanding);
-    }, []);
+
+        // Every debtor is right there on the list — having looked at it once
+        // is enough to drop them off Home/the tab badge. A customer who pays
+        // off and later falls back into debt counts as new again (see
+        // useAppBadges' pruning); one who just owes more than last time
+        // doesn't re-alert on that alone.
+        if (outstanding.length > 0) markKhataSeen(outstanding.map(row => row.customer.id));
+    }, [markKhataSeen]);
 
     useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -70,6 +80,7 @@ export default function KhataScreen({ navigation }) {
             await recordRepayment({ customerId: selected.customer.id, amount });
             closeCustomer();
             await load();
+            refreshBadges();
         } catch (e) {
             Alert.alert('Error', 'Could not record repayment. Please try again.');
             console.error(e);
@@ -85,12 +96,13 @@ export default function KhataScreen({ navigation }) {
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.teal} />}
                 showsVerticalScrollIndicator={false}
             >
+                {/* Khata is a tab root — its header action opens the full customer
+                    directory (address, contact) rather than going back anywhere. */}
                 <View style={s.header}>
-                    <TouchableOpacity onPress={() => navigation.goBack()}>
-                        <Text style={s.back}>‹ Back</Text>
-                    </TouchableOpacity>
                     <Text style={s.title}>Khata</Text>
-                    <View style={{ width: 40 }} />
+                    <TouchableOpacity style={s.headerIconBtn} onPress={() => navigation.navigate('Customers')}>
+                        <AppIcon name="customers" size="chip" />
+                    </TouchableOpacity>
                 </View>
 
                 {/* Total outstanding card */}
@@ -104,7 +116,7 @@ export default function KhataScreen({ navigation }) {
 
                 {rows.length === 0 ? (
                     <EmptyState
-                        icon="✅"
+                        icon={<AppIcon name="allClear" size={40} color={colors.teal} />}
                         title="No pending credit"
                         subtitle="Credit sales you make will show up here until the customer repays."
                     />
@@ -148,7 +160,7 @@ export default function KhataScreen({ navigation }) {
                                 <Text style={s.modalPhone}>{selected?.customer?.phone}</Text>
                             </View>
                             <TouchableOpacity onPress={closeCustomer}>
-                                <Text style={s.modalClose}>✕</Text>
+                                <AppIcon name="close" size="chip" color={colors.red} />
                             </TouchableOpacity>
                         </View>
 
@@ -230,8 +242,12 @@ const s = StyleSheet.create({
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
         paddingTop: spacing.xl, marginBottom: spacing.xl,
     },
-    back: { color: colors.teal, fontSize: font.md, fontWeight: '600' },
     title: { color: colors.textPrimary, fontSize: font.lg, fontWeight: '700' },
+    headerIconBtn: {
+        width: 38, height: 38, borderRadius: radius.md,
+        backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.border,
+        alignItems: 'center', justifyContent: 'center',
+    },
 
     totalCard: {
         backgroundColor: colors.bgCard,

@@ -8,6 +8,7 @@ import { Q } from '@nozbe/watermelondb';
 import database from '../database';
 import { getBusinessId } from '../sync/syncEngine';
 import { Badge, EmptyState } from '../../components/UI';
+import { AppIcon } from '../theme/icons';
 import { colors, spacing, radius, font } from '../theme';
 
 const DATE_FILTERS = ['today', 'week', 'month', 'all'];
@@ -15,6 +16,8 @@ const PAYMENT_FILTERS = ['all', 'cash', 'upi', 'credit'];
 
 export default function OrderHistoryScreen({ navigation }) {
     const [orders, setOrders] = useState([]);
+    const [itemCounts, setItemCounts] = useState({});     // orderId -> item count
+    const [customerNames, setCustomerNames] = useState({}); // orderId -> customer name | undefined
     const [selected, setSelected] = useState(null);
     const [items, setItems] = useState([]);
     const [refreshing, setRefreshing] = useState(false);
@@ -39,6 +42,36 @@ export default function OrderHistoryScreen({ navigation }) {
             .fetch();
 
         setOrders(rows);
+
+        if (rows.length === 0) {
+            setItemCounts({});
+            setCustomerNames({});
+            return;
+        }
+
+        // Two batched follow-up queries (not one per order) for what each row
+        // needs instead of the order id: item count, and the customer's name
+        // for credit sales.
+        const orderIds = rows.map(o => o.id);
+        const items = await database.get('sale_items')
+            .query(Q.where('order_id', Q.oneOf(orderIds)))
+            .fetch();
+        const itemCountByOrder = {};
+        for (const item of items) {
+            itemCountByOrder[item.orderId] = (itemCountByOrder[item.orderId] || 0) + 1;
+        }
+        setItemCounts(itemCountByOrder);
+
+        const customerIds = [...new Set(rows.map(o => o.customerId).filter(Boolean))];
+        const customers = customerIds.length
+            ? await database.get('customers').query(Q.where('id', Q.oneOf(customerIds))).fetch()
+            : [];
+        const nameByCustomer = new Map(customers.map(c => [c.id, c.name]));
+        const nameByOrder = {};
+        for (const order of rows) {
+            if (order.customerId) nameByOrder[order.id] = nameByCustomer.get(order.customerId) ?? null;
+        }
+        setCustomerNames(nameByOrder);
     }, []);
 
     useFocusEffect(useCallback(() => {
@@ -146,11 +179,7 @@ export default function OrderHistoryScreen({ navigation }) {
                 ListHeaderComponent={(
                     <View>
                         <View style={s.header}>
-                            <TouchableOpacity onPress={() => navigation.goBack()}>
-                                <Text style={s.back}>Back</Text>
-                            </TouchableOpacity>
                             <Text style={s.title}>Order History</Text>
-                            <View style={{ width: 50 }} />
                         </View>
 
                         <View style={s.summaryCard}>
@@ -197,7 +226,7 @@ export default function OrderHistoryScreen({ navigation }) {
                 )}
                 ListEmptyComponent={(
                     <EmptyState
-                        icon="🧾"
+                        icon={<AppIcon name="records" size={40} color={colors.textMuted} />}
                         title="No orders found"
                         subtitle="Try a wider date range or complete a sale to see it here"
                     />
@@ -210,29 +239,36 @@ export default function OrderHistoryScreen({ navigation }) {
                         </Text>
                     </View>
                 )}
-                renderItem={({ item: order }) => (
-                    <TouchableOpacity
-                        style={s.orderRow}
-                        onPress={() => openOrder(order)}
-                        activeOpacity={0.75}
-                    >
-                        <View style={[s.paymentStripe, { backgroundColor: paymentColor(order.paymentMode) }]} />
-                        <View style={s.orderMain}>
-                            <View style={s.orderTop}>
-                                <Text style={s.orderId}>#{order.id.slice(-6).toUpperCase()}</Text>
-                                <Text style={s.orderAmount}>₹{order.totalAmount.toFixed(2)}</Text>
+                renderItem={({ item: order }) => {
+                    const isCredit = order.paymentMode === 'credit';
+                    const itemCount = itemCounts[order.id] || 0;
+                    const customerName = customerNames[order.id];
+                    return (
+                        <TouchableOpacity
+                            style={s.orderRow}
+                            onPress={() => openOrder(order)}
+                            activeOpacity={0.75}
+                        >
+                            <View style={[s.paymentStripe, { backgroundColor: paymentColor(order.paymentMode) }]} />
+                            <View style={s.orderMain}>
+                                <View style={s.orderTop}>
+                                    <Text style={s.orderPrimary} numberOfLines={1}>
+                                        {isCredit ? (customerName || 'Khata sale') : `${itemCount} item${itemCount === 1 ? '' : 's'}`}
+                                    </Text>
+                                    <Text style={s.orderAmount}>₹{order.totalAmount.toFixed(2)}</Text>
+                                </View>
+                                <View style={s.orderBottom}>
+                                    <Text style={s.orderTime}>{formatTime(order.saleAt)}</Text>
+                                    <Badge
+                                        label={order.paymentMode.toUpperCase()}
+                                        color={paymentColor(order.paymentMode)}
+                                    />
+                                </View>
                             </View>
-                            <View style={s.orderBottom}>
-                                <Text style={s.orderTime}>{formatTime(order.saleAt)}</Text>
-                                <Badge
-                                    label={order.paymentMode.toUpperCase()}
-                                    color={paymentColor(order.paymentMode)}
-                                />
-                            </View>
-                        </View>
-                        <Text style={s.chevron}>›</Text>
-                    </TouchableOpacity>
-                )}
+                            <AppIcon name="chevron" size="inline" />
+                        </TouchableOpacity>
+                    );
+                }}
             />
 
             <Modal visible={!!selected} transparent animationType="slide" onRequestClose={() => setSelected(null)}>
@@ -243,7 +279,7 @@ export default function OrderHistoryScreen({ navigation }) {
                                 Order #{selected?.id.slice(-6).toUpperCase()}
                             </Text>
                             <TouchableOpacity onPress={() => setSelected(null)}>
-                                <Text style={s.modalClose}>✕</Text>
+                                <AppIcon name="close" size="chip" color={colors.red} />
                             </TouchableOpacity>
                         </View>
 
@@ -332,7 +368,6 @@ const s = StyleSheet.create({
         justifyContent: 'space-between',
         paddingTop: spacing.xl, marginBottom: spacing.xl,
     },
-    back: { color: colors.teal, fontSize: font.md, fontWeight: '600' },
     title: { color: colors.textPrimary, fontSize: font.lg, fontWeight: '700' },
 
     summaryCard: {
@@ -376,11 +411,10 @@ const s = StyleSheet.create({
     paymentStripe: { width: 4, alignSelf: 'stretch' },
     orderMain: { flex: 1, padding: spacing.md },
     orderTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-    orderId: { color: colors.textSecondary, fontSize: font.sm, fontWeight: '700' },
+    orderPrimary: { color: colors.textSecondary, fontSize: font.sm, fontWeight: '700', flexShrink: 1, marginRight: spacing.sm },
     orderAmount: { color: colors.textPrimary, fontSize: font.md, fontWeight: '700' },
     orderBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     orderTime: { color: colors.textMuted, fontSize: font.xs },
-    chevron: { color: colors.textMuted, fontSize: 22, paddingHorizontal: spacing.sm },
 
     modalOverlay: {
         flex: 1, backgroundColor: 'rgba(0,0,0,0.75)',
@@ -398,7 +432,6 @@ const s = StyleSheet.create({
         alignItems: 'center', marginBottom: spacing.md,
     },
     modalTitle: { color: colors.textPrimary, fontSize: font.lg, fontWeight: '700' },
-    modalClose: { color: colors.red, fontSize: font.lg, padding: 4 },
     modalMeta: {
         flexDirection: 'row', justifyContent: 'space-between',
         alignItems: 'center', marginBottom: spacing.lg,

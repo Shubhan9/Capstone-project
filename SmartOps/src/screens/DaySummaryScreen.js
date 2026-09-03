@@ -83,7 +83,7 @@ export default function DaySummaryScreen({ navigation }) {
                     </View>
                 </View>
 
-                <TouchableOpacity style={s.historyBtn} onPress={() => navigation.navigate('OrderHistory')} activeOpacity={0.8}>
+                <TouchableOpacity style={s.historyBtn} onPress={() => navigation.navigate('MainTabs', { screen: 'OrderHistory' })} activeOpacity={0.8}>
                     <Text style={s.historyBtnText}>View today&apos;s orders ›</Text>
                 </TouchableOpacity>
             </ScrollView>

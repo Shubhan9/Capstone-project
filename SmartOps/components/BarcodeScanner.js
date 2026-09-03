@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { colors, font, radius, spacing } from '../src/theme';
+import { AppIcon } from '../src/theme/icons';
 
 export default function BarcodeScanner({ onScan, onClose, hint }) {
     const [permission, requestPermission] = useCameraPermissions();
@@ -94,16 +95,25 @@ export default function BarcodeScanner({ onScan, onClose, hint }) {
                             style={[s.actionChip, torch && s.actionChipActive]}
                             onPress={() => setTorch(t => !t)}
                         >
-                            <Text style={[s.actionChipText, torch && s.actionChipTextActive]}>
-                                🔦 {torch ? 'Torch on' : 'Torch'}
-                            </Text>
+                            <View style={s.actionChipInner}>
+                                <AppIcon name="torch" size="inline" active={torch} color={torch ? undefined : colors.textPrimary} />
+                                <Text style={[s.actionChipText, torch && s.actionChipTextActive]}>
+                                    {torch ? 'Torch on' : 'Torch'}
+                                </Text>
+                            </View>
                         </TouchableOpacity>
                         <TouchableOpacity style={s.actionChip} onPress={() => setManualMode(true)}>
-                            <Text style={s.actionChipText}>⌨  Enter code</Text>
+                            <View style={s.actionChipInner}>
+                                <AppIcon name="keyboard" size="inline" color={colors.textPrimary} />
+                                <Text style={s.actionChipText}>Enter code</Text>
+                            </View>
                         </TouchableOpacity>
                     </View>
                     <TouchableOpacity style={s.closeBtn} onPress={onClose}>
-                        <Text style={s.closeBtnText}>✕  Close</Text>
+                        <View style={s.actionChipInner}>
+                            <AppIcon name="close" size="inline" color={colors.textPrimary} />
+                            <Text style={s.closeBtnText}>Close</Text>
+                        </View>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -194,6 +204,7 @@ const s = StyleSheet.create({
         paddingHorizontal: spacing.lg, paddingVertical: spacing.sm,
     },
     actionChipActive: { borderColor: colors.teal, backgroundColor: colors.teal + '25' },
+    actionChipInner: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     actionChipText: { color: colors.textPrimary, fontSize: font.sm, fontWeight: '600' },
     actionChipTextActive: { color: colors.teal },
 

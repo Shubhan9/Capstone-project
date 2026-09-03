@@ -6,6 +6,8 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { getLowStockProducts, getNearExpiryBatches, getBatchQuantities, getProductsByIds, recordWastage } from '../database/actions';
 import { Card, Badge, EmptyState } from '../../components/UI';
+import { useAppBadges } from '../hooks/useAppBadges';
+import { AppIcon } from '../theme/icons';
 import { colors, spacing, radius, font } from '../theme';
 
 export default function AlertsScreen({ navigation }) {
@@ -13,8 +15,9 @@ export default function AlertsScreen({ navigation }) {
     const [nearExpiry, setNearExpiry] = useState([]);
     const [refreshing, setRefreshing] = useState(false);
     const [tab, setTab] = useState('expiry');  // 'expiry' | 'stock'
+    const { refresh: refreshBadges, markLowStockSeen, markNearExpirySeen } = useAppBadges();
 
-    async function load() {
+    const load = useCallback(async () => {
         const [ls, nearExpiryBatches] = await Promise.all([
             getLowStockProducts(),
             getNearExpiryBatches(30),
@@ -36,9 +39,17 @@ export default function AlertsScreen({ navigation }) {
 
         setLowStock(ls);
         setNearExpiry(ne);
-    }
 
-    useFocusEffect(useCallback(() => { load(); }, []));
+        // This screen shows the full 30-day expiry window, but the badge only
+        // tracks the 7-day actionable one — only mark that subset seen, or a
+        // batch glanced at here weeks ago would stay silently suppressed once
+        // it actually becomes urgent.
+        if (ls.length > 0) markLowStockSeen(ls.map(({ product }) => product.id));
+        const urgent = ne.filter(({ batch }) => batch.daysUntilExpiry <= 7);
+        if (urgent.length > 0) markNearExpirySeen(urgent.map(({ batch }) => batch.id));
+    }, [markLowStockSeen, markNearExpirySeen]);
+
+    useFocusEffect(useCallback(() => { load(); }, [load]));
 
     async function onRefresh() { setRefreshing(true); await load(); setRefreshing(false); }
 
@@ -55,6 +66,7 @@ export default function AlertsScreen({ navigation }) {
                         try {
                             await recordWastage({ productId: product.id, batchId: batch.id, quantity: remainingQty });
                             await load();
+                            refreshBadges();
                         } catch (e) {
                             Alert.alert('Error', 'Could not record wastage. Please try again.');
                             console.error(e);
@@ -129,7 +141,7 @@ export default function AlertsScreen({ navigation }) {
 
                 {tab === 'expiry' && (
                     nearExpiry.length === 0
-                        ? <EmptyState icon="✅" title="No near-expiry items" subtitle="All tracked batches are within safe date range" />
+                        ? <EmptyState icon={<AppIcon name="allClear" size={40} color={colors.teal} />} title="No near-expiry items" subtitle="All tracked batches are within safe date range" />
                         : nearExpiry
                             .sort((a, b) => a.batch.expiryDate - b.batch.expiryDate)
                             .map(({ batch, product, remainingQty }) => {
@@ -168,7 +180,7 @@ export default function AlertsScreen({ navigation }) {
 
                 {tab === 'stock' && (
                     lowStock.length === 0
-                        ? <EmptyState icon="✅" title="All products are stocked" subtitle="Nothing below reorder level" />
+                        ? <EmptyState icon={<AppIcon name="allClear" size={40} color={colors.teal} />} title="All products are stocked" subtitle="Nothing below reorder level" />
                         : lowStock.map(({ product, stock }) => {
                             const color = stockColor(stock, product.reorderLevel);
                             return (

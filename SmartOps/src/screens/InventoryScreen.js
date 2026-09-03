@@ -7,6 +7,8 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { getAllProducts, getStockLevels, updateProduct } from '../database/actions';
 import { Badge, EmptyState, PrimaryButton, GhostButton } from '../../components/UI';
+import { useAppBadges } from '../hooks/useAppBadges';
+import { AppIcon } from '../theme/icons';
 import { colors, spacing, radius, font } from '../theme';
 
 export default function InventoryScreen({ navigation }) {
@@ -18,15 +20,21 @@ export default function InventoryScreen({ navigation }) {
     const [editing, setEditing] = useState(null);   // product being edited
     const [editForm, setEditForm] = useState({ sellingPrice: '', reorderLevel: '' });
     const [saving, setSaving] = useState(false);
+    const { refresh: refreshBadges, markLowStockSeen } = useAppBadges();
 
-    async function load() {
+    const load = useCallback(async () => {
         const prods = await getAllProducts();
         const stockMap = await getStockLevels(prods);  // one query instead of one per product
         setProducts(prods);
         setStocks(stockMap);
-    }
 
-    useFocusEffect(useCallback(() => { load(); }, []));
+        // Every low/out-of-stock product is visibly flagged in this list —
+        // having looked at it once is enough to drop it off Home/the tab badge.
+        const lowIds = prods.filter(p => (stockMap[p.id] ?? 0) <= p.reorderLevel).map(p => p.id);
+        if (lowIds.length > 0) markLowStockSeen(lowIds);
+    }, [markLowStockSeen]);
+
+    useFocusEffect(useCallback(() => { load(); }, [load]));
 
     async function onRefresh() { setRefreshing(true); await load(); setRefreshing(false); }
 
@@ -49,6 +57,7 @@ export default function InventoryScreen({ navigation }) {
             await updateProduct({ productId: editing.id, sellingPrice: price, reorderLevel: reorder });
             setEditing(null);
             await load();
+            refreshBadges();
         } catch (e) {
             Alert.alert('Error', 'Could not save changes. Please try again.');
             console.error(e);
@@ -88,15 +97,21 @@ export default function InventoryScreen({ navigation }) {
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.teal} />}
                 showsVerticalScrollIndicator={false}
             >
-                {/* Header */}
+                {/* Header — Inventory is a tab root, so this carries entry points into
+                    the rest of the stock domain (alerts, reorder) instead of a back button. */}
                 <View style={s.header}>
-                    <TouchableOpacity onPress={() => navigation.goBack()}>
-                        <Text style={s.back}>‹ Back</Text>
-                    </TouchableOpacity>
                     <Text style={s.title}>Inventory</Text>
-                    <TouchableOpacity onPress={() => navigation.navigate('ProductRegistration')}>
-                        <Text style={s.addBtn}>+ Add</Text>
-                    </TouchableOpacity>
+                    <View style={s.headerActions}>
+                        <TouchableOpacity style={s.headerIconBtn} onPress={() => navigation.navigate('Alerts')}>
+                            <AppIcon name="alerts" size="chip" color={(lowCount + outCount) > 0 ? colors.amber : colors.textMuted} />
+                        </TouchableOpacity>
+                        <TouchableOpacity style={s.headerIconBtn} onPress={() => navigation.navigate('Reorder')}>
+                            <AppIcon name="restock" size="chip" />
+                        </TouchableOpacity>
+                        <TouchableOpacity style={s.headerIconBtn} onPress={() => navigation.navigate('ProductRegistration')}>
+                            <AppIcon name="add" size="chip" color={colors.teal} />
+                        </TouchableOpacity>
+                    </View>
                 </View>
 
                 {/* Summary strip */}
@@ -147,7 +162,7 @@ export default function InventoryScreen({ navigation }) {
 
                 {/* Product list */}
                 {filtered.length === 0
-                    ? <EmptyState icon="📦" title="No products found" subtitle="Add products via the + button above" />
+                    ? <EmptyState icon={<AppIcon name="inventory" size={40} color={colors.textMuted} />} title="No products found" subtitle="Add products via the + button above" />
                     : filtered.map(p => {
                         const stock = stocks[p.id] ?? 0;
                         const badge = stockBadge(stock, p.reorderLevel);
@@ -200,7 +215,7 @@ export default function InventoryScreen({ navigation }) {
                                 </Text>
                             </View>
                             <TouchableOpacity onPress={() => setEditing(null)}>
-                                <Text style={s.modalClose}>✕</Text>
+                                <AppIcon name="close" size="chip" color={colors.red} />
                             </TouchableOpacity>
                         </View>
 
@@ -261,9 +276,13 @@ const s = StyleSheet.create({
         justifyContent: 'space-between',
         paddingTop: spacing.xl, marginBottom: spacing.xl,
     },
-    back: { color: colors.teal, fontSize: font.md, fontWeight: '600' },
     title: { color: colors.textPrimary, fontSize: font.lg, fontWeight: '700' },
-    addBtn: { color: colors.teal, fontSize: font.md, fontWeight: '700' },
+    headerActions: { flexDirection: 'row', gap: spacing.sm },
+    headerIconBtn: {
+        width: 38, height: 38, borderRadius: radius.md,
+        backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.border,
+        alignItems: 'center', justifyContent: 'center',
+    },
 
     stripRow: {
         flexDirection: 'row',
@@ -327,7 +346,6 @@ const s = StyleSheet.create({
     modalHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: spacing.lg },
     modalTitle: { color: colors.textPrimary, fontSize: font.xl, fontWeight: '700' },
     modalSub: { color: colors.textMuted, fontSize: font.sm, marginTop: 2 },
-    modalClose: { color: colors.red, fontSize: font.lg, padding: 4 },
     inputLabel: {
         color: colors.textMuted, fontSize: font.xs, fontWeight: '700', letterSpacing: 1,
         marginBottom: spacing.xs, marginTop: spacing.md,

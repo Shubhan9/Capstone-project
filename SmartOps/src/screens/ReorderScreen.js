@@ -6,6 +6,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { AnalyticsAPI } from '../services/api';
 import { Badge, EmptyState } from '../../components/UI';
+import { AppIcon } from '../theme/icons';
 import { colors, spacing, radius, font } from '../theme';
 
 const URGENCY_COLORS = {
@@ -82,9 +83,9 @@ export default function ReorderScreen({ navigation }) {
                         <Text style={s.loadingText}>Analysing sales & stock…</Text>
                     </View>
                 ) : state.error ? (
-                    <EmptyState icon="📡" title="Can't load suggestions" subtitle={state.error} />
+                    <EmptyState icon={<AppIcon name="offline" size={40} color={colors.textMuted} />} title="Can't load suggestions" subtitle={state.error} />
                 ) : state.items.length === 0 ? (
-                    <EmptyState icon="✅" title="Nothing to reorder" subtitle="Stock cover looks healthy across your products." />
+                    <EmptyState icon={<AppIcon name="allClear" size={40} color={colors.teal} />} title="Nothing to reorder" subtitle="Stock cover looks healthy across your products." />
                 ) : (
                     state.items.map(item => {
                         const color = URGENCY_COLORS[item.urgency] || colors.teal;

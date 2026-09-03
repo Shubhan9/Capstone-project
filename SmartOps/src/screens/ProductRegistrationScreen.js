@@ -8,6 +8,7 @@ import { registerProduct, getProductByBarcode } from '../database/actions';
 import { BarcodeAPI } from '../services/api';
 import BarcodeScanner from '../../components/BarcodeScanner';
 import { PrimaryButton, GhostButton, Card } from '../../components/UI';
+import { AppIcon } from '../theme/icons';
 import { colors, spacing, radius, font } from '../theme';
 
 const CATEGORIES = ['Grocery', 'Beverage', 'Snack', 'Dairy', 'Medicine', 'Personal Care', 'Household', 'Other'];
@@ -45,8 +46,8 @@ export default function ProductRegistrationScreen({ navigation, route }) {
         const existing = await getProductByBarcode(barcode);
         if (existing) {
             Alert.alert('Already registered', `${existing.name} is already in your inventory.`, [
-                { text: 'View inventory', onPress: () => navigation.navigate('Inventory') },
-                { text: 'Cancel', style: 'cancel', onPress: () => navigation.navigate('Home') },
+                { text: 'View inventory', onPress: () => navigation.navigate('MainTabs', { screen: 'Inventory' }) },
+                { text: 'Cancel', style: 'cancel', onPress: () => navigation.navigate('MainTabs', { screen: 'Home' }) },
             ]);
             return;
         }
@@ -96,7 +97,7 @@ export default function ProductRegistrationScreen({ navigation, route }) {
 
         setLoading(true);
         try {
-            await registerProduct({
+            const product = await registerProduct({
                 barcode: form.barcode.trim(),
                 name: form.name.trim(),
                 brand: form.brand.trim(),
@@ -107,10 +108,20 @@ export default function ProductRegistrationScreen({ navigation, route }) {
                 sellingPrice: parseFloat(form.sellingPrice) || 0,
             });
 
-            Alert.alert('Product added ✓', form.name, [
-                { text: 'Add stock now', onPress: () => navigation.replace('StockIn') },
-                { text: 'Done', onPress: () => navigation.goBack() },
-            ]);
+            // Hand the product straight to Stock In (same one they just typed
+            // in) instead of sending them to re-scan a barcode they already
+            // have on screen. cancelable: false so the dialog can't be
+            // swiped/back-button-dismissed, leaving the save with no
+            // redirect at all.
+            Alert.alert(
+                'Product added',
+                form.name,
+                [
+                    { text: 'Add stock now', onPress: () => navigation.replace('StockIn', { productId: product.id }) },
+                    { text: 'Done', onPress: () => navigation.goBack() },
+                ],
+                { cancelable: false }
+            );
         } catch (e) {
             Alert.alert('Error', 'Could not save product.');
             console.error(e);
@@ -156,7 +167,7 @@ export default function ProductRegistrationScreen({ navigation, route }) {
                         keyboardType="numeric"
                     />
                     <TouchableOpacity style={s.scanIconBtn} onPress={() => setScanning(true)}>
-                        <Text style={s.scanIconBtnText}>▣</Text>
+                        <AppIcon name="scan" size="chip" color={colors.bg} />
                     </TouchableOpacity>
                 </View>
 
@@ -304,7 +315,6 @@ const s = StyleSheet.create({
         borderRadius: radius.md, width: 50,
         alignItems: 'center', justifyContent: 'center',
     },
-    scanIconBtnText: { fontSize: 22, color: colors.bg },
 
     input: {
         backgroundColor: colors.bgInput,

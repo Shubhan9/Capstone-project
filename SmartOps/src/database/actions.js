@@ -501,6 +501,42 @@ export async function getTodaySales() {
     return { count: orders.length, total };
 }
 
+// Most recent orders for Home's "recent activity" glance. Newest-first by
+// sale_at (the same field Order History sorts by) — each row also carries
+// its item count and, for credit sales, the customer's name, since Home's
+// row shows one or the other instead of the order id.
+export async function getRecentOrders(limit = 4) {
+    const bId = getBusinessId();
+    const orders = await database.get('sale_orders')
+        .query(
+            Q.where('business_id', bId),
+            Q.sortBy('sale_at', Q.desc),
+            Q.take(limit)
+        )
+        .fetch();
+
+    if (orders.length === 0) return [];
+
+    const orderIds = orders.map(o => o.id);
+    const items = await database.get('sale_items')
+        .query(Q.where('order_id', Q.oneOf(orderIds)))
+        .fetch();
+
+    const itemCountByOrder = {};
+    for (const item of items) {
+        itemCountByOrder[item.orderId] = (itemCountByOrder[item.orderId] || 0) + 1;
+    }
+
+    const customerIds = [...new Set(orders.map(o => o.customerId).filter(Boolean))];
+    const customerMap = customerIds.length ? await getCustomersByIds(customerIds) : new Map();
+
+    return orders.map(order => ({
+        order,
+        itemCount: itemCountByOrder[order.id] || 0,
+        customerName: order.customerId ? (customerMap.get(order.customerId)?.name ?? null) : null,
+    }));
+}
+
 // End-of-day closing summary, computed entirely from the local DB (works offline).
 export async function getDaySummary() {
     const bId = getBusinessId();
