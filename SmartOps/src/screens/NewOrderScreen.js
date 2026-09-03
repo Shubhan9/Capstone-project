@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity,
-    TextInput, StyleSheet, Alert, Modal, KeyboardAvoidingView, Platform,
+    TextInput, StyleSheet, Alert, Modal, KeyboardAvoidingView, Platform, Keyboard,
 } from 'react-native';
 import { getProductByBarcode, recordSale, upsertCustomer, getCustomerByPhone, getCustomerBalance } from '../database/actions';
 import BarcodeScanner from '../../components/BarcodeScanner';
@@ -302,9 +302,9 @@ export default function NewOrderScreen({ navigation }) {
             </ScrollView>
 
             {/* Product not found modal */}
-            <Modal visible={!!notFoundBarcode} transparent animationType="slide">
-                <View style={s.modalOverlay}>
-                    <View style={s.modalBox}>
+            <Modal visible={!!notFoundBarcode} transparent animationType="slide" onRequestClose={() => setNotFoundBarcode(null)}>
+                <TouchableOpacity style={s.modalOverlay} activeOpacity={1} onPress={() => setNotFoundBarcode(null)}>
+                    <TouchableOpacity activeOpacity={1} onPress={() => {}} style={s.modalBox}>
                         <Text style={s.modalTitle}>Product not found</Text>
                         <Text style={s.modalText}>
                             Barcode <Text style={{ color: colors.amber }}>{notFoundBarcode}</Text> isn&apos;t in your inventory yet.
@@ -322,14 +322,22 @@ export default function NewOrderScreen({ navigation }) {
                             onPress={() => { setNotFoundBarcode(null); setScanning(true); }}
                             style={{ marginTop: spacing.sm }}
                         />
-                    </View>
-                </View>
+                    </TouchableOpacity>
+                </TouchableOpacity>
             </Modal>
 
             {/* Draft Price Modal for Test Data */}
-            <Modal visible={!!draftPriceItem} transparent animationType="slide">
-                <View style={s.modalOverlay}>
-                    <View style={s.modalBox}>
+            <Modal visible={!!draftPriceItem} transparent animationType="slide" onRequestClose={() => setDraftPriceItem(null)}>
+                <KeyboardAvoidingView
+                    style={s.modalOverlay}
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                >
+                    <TouchableOpacity
+                        style={s.modalBackdrop}
+                        activeOpacity={1}
+                        onPress={() => { Keyboard.dismiss(); setDraftPriceItem(null); }}
+                    >
+                    <TouchableOpacity activeOpacity={1} onPress={() => {}} style={s.modalBox}>
                         <Text style={s.modalTitle}>Set Item Price</Text>
                         <Text style={s.modalText}>
                             <Text style={{ fontWeight: '700', color: colors.teal }}>{draftPriceItem?.product?.name}</Text> has a price of ₹0 in the database (old test data). Setting a price is required for checkout.
@@ -357,14 +365,23 @@ export default function NewOrderScreen({ navigation }) {
                             onPress={() => setDraftPriceItem(null)}
                             style={{ marginTop: spacing.sm }}
                         />
-                    </View>
-                </View>
+                    </TouchableOpacity>
+                    </TouchableOpacity>
+                </KeyboardAvoidingView>
             </Modal>
 
             {/* Price override / discount modal */}
             <Modal visible={priceEdit !== null} transparent animationType="slide" onRequestClose={() => setPriceEdit(null)}>
-                <View style={s.modalOverlay}>
-                    <View style={s.modalBox}>
+                <KeyboardAvoidingView
+                    style={s.modalOverlay}
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                >
+                    <TouchableOpacity
+                        style={s.modalBackdrop}
+                        activeOpacity={1}
+                        onPress={() => { Keyboard.dismiss(); setPriceEdit(null); }}
+                    >
+                    <TouchableOpacity activeOpacity={1} onPress={() => {}} style={s.modalBox}>
                         <Text style={s.modalTitle}>Edit price</Text>
                         <Text style={s.modalText}>
                             Set the selling price for{' '}
@@ -388,8 +405,9 @@ export default function NewOrderScreen({ navigation }) {
                             onPress={() => setPriceEdit(null)}
                             style={{ marginTop: spacing.sm }}
                         />
-                    </View>
-                </View>
+                    </TouchableOpacity>
+                    </TouchableOpacity>
+                </KeyboardAvoidingView>
             </Modal>
         </KeyboardAvoidingView>
     );
@@ -487,6 +505,7 @@ const s = StyleSheet.create({
         flex: 1, backgroundColor: 'rgba(0,0,0,0.75)',
         justifyContent: 'flex-end',
     },
+    modalBackdrop: { flex: 1, width: '100%', justifyContent: 'flex-end' },
     modalBox: {
         backgroundColor: colors.bgCard,
         borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl,
