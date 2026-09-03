@@ -21,12 +21,19 @@ export default function KhataScreen({ navigation }) {
     const [loadingLedger, setLoadingLedger] = useState(false);
     const [payAmount, setPayAmount] = useState('');
     const [saving, setSaving] = useState(false);
-    const { refresh: refreshBadges } = useAppBadges();
+    const { refresh: refreshBadges, markKhataSeen } = useAppBadges();
 
     const load = useCallback(async () => {
         const outstanding = await getOutstandingCustomers();
         setRows(outstanding);
-    }, []);
+
+        // Every debtor is right there on the list — having looked at it once
+        // is enough to drop them off Home/the tab badge. A customer who pays
+        // off and later falls back into debt counts as new again (see
+        // useAppBadges' pruning); one who just owes more than last time
+        // doesn't re-alert on that alone.
+        if (outstanding.length > 0) markKhataSeen(outstanding.map(row => row.customer.id));
+    }, [markKhataSeen]);
 
     useFocusEffect(useCallback(() => { load(); }, [load]));
 

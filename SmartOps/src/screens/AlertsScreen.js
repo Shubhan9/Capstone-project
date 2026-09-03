@@ -15,9 +15,9 @@ export default function AlertsScreen({ navigation }) {
     const [nearExpiry, setNearExpiry] = useState([]);
     const [refreshing, setRefreshing] = useState(false);
     const [tab, setTab] = useState('expiry');  // 'expiry' | 'stock'
-    const { refresh: refreshBadges } = useAppBadges();
+    const { refresh: refreshBadges, markLowStockSeen, markNearExpirySeen } = useAppBadges();
 
-    async function load() {
+    const load = useCallback(async () => {
         const [ls, nearExpiryBatches] = await Promise.all([
             getLowStockProducts(),
             getNearExpiryBatches(30),
@@ -39,9 +39,17 @@ export default function AlertsScreen({ navigation }) {
 
         setLowStock(ls);
         setNearExpiry(ne);
-    }
 
-    useFocusEffect(useCallback(() => { load(); }, []));
+        // This screen shows the full 30-day expiry window, but the badge only
+        // tracks the 7-day actionable one — only mark that subset seen, or a
+        // batch glanced at here weeks ago would stay silently suppressed once
+        // it actually becomes urgent.
+        if (ls.length > 0) markLowStockSeen(ls.map(({ product }) => product.id));
+        const urgent = ne.filter(({ batch }) => batch.daysUntilExpiry <= 7);
+        if (urgent.length > 0) markNearExpirySeen(urgent.map(({ batch }) => batch.id));
+    }, [markLowStockSeen, markNearExpirySeen]);
+
+    useFocusEffect(useCallback(() => { load(); }, [load]));
 
     async function onRefresh() { setRefreshing(true); await load(); setRefreshing(false); }
 

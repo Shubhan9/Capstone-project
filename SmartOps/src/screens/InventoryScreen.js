@@ -20,16 +20,21 @@ export default function InventoryScreen({ navigation }) {
     const [editing, setEditing] = useState(null);   // product being edited
     const [editForm, setEditForm] = useState({ sellingPrice: '', reorderLevel: '' });
     const [saving, setSaving] = useState(false);
-    const { refresh: refreshBadges } = useAppBadges();
+    const { refresh: refreshBadges, markLowStockSeen } = useAppBadges();
 
-    async function load() {
+    const load = useCallback(async () => {
         const prods = await getAllProducts();
         const stockMap = await getStockLevels(prods);  // one query instead of one per product
         setProducts(prods);
         setStocks(stockMap);
-    }
 
-    useFocusEffect(useCallback(() => { load(); }, []));
+        // Every low/out-of-stock product is visibly flagged in this list —
+        // having looked at it once is enough to drop it off Home/the tab badge.
+        const lowIds = prods.filter(p => (stockMap[p.id] ?? 0) <= p.reorderLevel).map(p => p.id);
+        if (lowIds.length > 0) markLowStockSeen(lowIds);
+    }, [markLowStockSeen]);
+
+    useFocusEffect(useCallback(() => { load(); }, [load]));
 
     async function onRefresh() { setRefreshing(true); await load(); setRefreshing(false); }
 
