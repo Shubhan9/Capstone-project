@@ -6,6 +6,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { getLowStockProducts, getNearExpiryBatches, getBatchQuantities, getProductsByIds, recordWastage } from '../database/actions';
 import { Card, Badge, EmptyState } from '../../components/UI';
+import { AppIcon } from '../theme/icons';
 import { colors, spacing, radius, font } from '../theme';
 
 export default function AlertsScreen({ navigation }) {
@@ -129,7 +130,7 @@ export default function AlertsScreen({ navigation }) {
 
                 {tab === 'expiry' && (
                     nearExpiry.length === 0
-                        ? <EmptyState icon="✅" title="No near-expiry items" subtitle="All tracked batches are within safe date range" />
+                        ? <EmptyState icon={<AppIcon name="allClear" size={40} color={colors.teal} />} title="No near-expiry items" subtitle="All tracked batches are within safe date range" />
                         : nearExpiry
                             .sort((a, b) => a.batch.expiryDate - b.batch.expiryDate)
                             .map(({ batch, product, remainingQty }) => {
@@ -168,7 +169,7 @@ export default function AlertsScreen({ navigation }) {
 
                 {tab === 'stock' && (
                     lowStock.length === 0
-                        ? <EmptyState icon="✅" title="All products are stocked" subtitle="Nothing below reorder level" />
+                        ? <EmptyState icon={<AppIcon name="allClear" size={40} color={colors.teal} />} title="All products are stocked" subtitle="Nothing below reorder level" />
                         : lowStock.map(({ product, stock }) => {
                             const color = stockColor(stock, product.reorderLevel);
                             return (

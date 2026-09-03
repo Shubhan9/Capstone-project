@@ -8,6 +8,7 @@ import { Q } from '@nozbe/watermelondb';
 import database from '../database';
 import { getBusinessId } from '../sync/syncEngine';
 import { Badge, EmptyState } from '../../components/UI';
+import { AppIcon } from '../theme/icons';
 import { colors, spacing, radius, font } from '../theme';
 
 const DATE_FILTERS = ['today', 'week', 'month', 'all'];
@@ -146,11 +147,7 @@ export default function OrderHistoryScreen({ navigation }) {
                 ListHeaderComponent={(
                     <View>
                         <View style={s.header}>
-                            <TouchableOpacity onPress={() => navigation.goBack()}>
-                                <Text style={s.back}>Back</Text>
-                            </TouchableOpacity>
                             <Text style={s.title}>Order History</Text>
-                            <View style={{ width: 50 }} />
                         </View>
 
                         <View style={s.summaryCard}>
@@ -197,7 +194,7 @@ export default function OrderHistoryScreen({ navigation }) {
                 )}
                 ListEmptyComponent={(
                     <EmptyState
-                        icon="🧾"
+                        icon={<AppIcon name="records" size={40} color={colors.textMuted} />}
                         title="No orders found"
                         subtitle="Try a wider date range or complete a sale to see it here"
                     />
@@ -230,7 +227,7 @@ export default function OrderHistoryScreen({ navigation }) {
                                 />
                             </View>
                         </View>
-                        <Text style={s.chevron}>›</Text>
+                        <AppIcon name="chevron" size="inline" />
                     </TouchableOpacity>
                 )}
             />
@@ -243,7 +240,7 @@ export default function OrderHistoryScreen({ navigation }) {
                                 Order #{selected?.id.slice(-6).toUpperCase()}
                             </Text>
                             <TouchableOpacity onPress={() => setSelected(null)}>
-                                <Text style={s.modalClose}>✕</Text>
+                                <AppIcon name="close" size="chip" color={colors.red} />
                             </TouchableOpacity>
                         </View>
 
@@ -332,7 +329,6 @@ const s = StyleSheet.create({
         justifyContent: 'space-between',
         paddingTop: spacing.xl, marginBottom: spacing.xl,
     },
-    back: { color: colors.teal, fontSize: font.md, fontWeight: '600' },
     title: { color: colors.textPrimary, fontSize: font.lg, fontWeight: '700' },
 
     summaryCard: {
@@ -380,7 +376,6 @@ const s = StyleSheet.create({
     orderAmount: { color: colors.textPrimary, fontSize: font.md, fontWeight: '700' },
     orderBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     orderTime: { color: colors.textMuted, fontSize: font.xs },
-    chevron: { color: colors.textMuted, fontSize: 22, paddingHorizontal: spacing.sm },
 
     modalOverlay: {
         flex: 1, backgroundColor: 'rgba(0,0,0,0.75)',
@@ -398,7 +393,6 @@ const s = StyleSheet.create({
         alignItems: 'center', marginBottom: spacing.md,
     },
     modalTitle: { color: colors.textPrimary, fontSize: font.lg, fontWeight: '700' },
-    modalClose: { color: colors.red, fontSize: font.lg, padding: 4 },
     modalMeta: {
         flexDirection: 'row', justifyContent: 'space-between',
         alignItems: 'center', marginBottom: spacing.lg,

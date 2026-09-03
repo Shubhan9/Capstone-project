@@ -61,10 +61,12 @@ export function SectionHeader({ title, action, onAction }) {
 }
 
 // ── EmptyState ───────────────────────────────────────────────────────────────
+// `icon` takes a rendered icon element (e.g. <AppIcon name="..." />), not a
+// string — a plain <Text> can't host a component, only text.
 export function EmptyState({ icon, title, subtitle }) {
     return (
         <View style={s.empty}>
-            <Text style={s.emptyIcon}>{icon}</Text>
+            {icon ? <View style={s.emptyIconWrap}>{icon}</View> : null}
             <Text style={s.emptyTitle}>{title}</Text>
             {subtitle && <Text style={s.emptySubtitle}>{subtitle}</Text>}
         </View>
@@ -127,7 +129,7 @@ const s = StyleSheet.create({
     sectionAction: { color: colors.teal, fontSize: font.sm, fontWeight: '600' },
 
     empty: { alignItems: 'center', paddingVertical: spacing.xxxl },
-    emptyIcon: { fontSize: 40, marginBottom: spacing.md },
+    emptyIconWrap: { marginBottom: spacing.md, opacity: 0.7 },
     emptyTitle: {
         color: colors.textSecondary, fontSize: font.lg,
         fontWeight: '600', marginBottom: spacing.sm, textAlign: 'center',
