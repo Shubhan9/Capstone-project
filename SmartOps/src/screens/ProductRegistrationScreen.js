@@ -97,7 +97,7 @@ export default function ProductRegistrationScreen({ navigation, route }) {
 
         setLoading(true);
         try {
-            await registerProduct({
+            const product = await registerProduct({
                 barcode: form.barcode.trim(),
                 name: form.name.trim(),
                 brand: form.brand.trim(),
@@ -108,10 +108,20 @@ export default function ProductRegistrationScreen({ navigation, route }) {
                 sellingPrice: parseFloat(form.sellingPrice) || 0,
             });
 
-            Alert.alert('Product added ✓', form.name, [
-                { text: 'Add stock now', onPress: () => navigation.replace('StockIn') },
-                { text: 'Done', onPress: () => navigation.goBack() },
-            ]);
+            // Hand the product straight to Stock In (same one they just typed
+            // in) instead of sending them to re-scan a barcode they already
+            // have on screen. cancelable: false so the dialog can't be
+            // swiped/back-button-dismissed, leaving the save with no
+            // redirect at all.
+            Alert.alert(
+                'Product added',
+                form.name,
+                [
+                    { text: 'Add stock now', onPress: () => navigation.replace('StockIn', { productId: product.id }) },
+                    { text: 'Done', onPress: () => navigation.goBack() },
+                ],
+                { cancelable: false }
+            );
         } catch (e) {
             Alert.alert('Error', 'Could not save product.');
             console.error(e);
