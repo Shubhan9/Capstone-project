@@ -4,9 +4,11 @@
 // `colors` palette needs to become theme-aware — nothing here, and nothing at
 // any of the ~15 call sites across the app, has to change.
 //
-// One stroke weight app-wide ('regular'). The single deliberate exception is
-// tab-bar active state, which switches to 'fill' — that's a state indicator,
-// not a second competing style.
+// One stroke weight app-wide ('regular'). Deliberate exceptions: tab-bar
+// active state switches to 'fill' (a state indicator, not a second
+// competing style), and an explicit `weight` override is available for the
+// rare one-off that needs it (e.g. the FAB's plus, bolded for emphasis
+// against a solid circle).
 import React from 'react';
 import {
     House, Package, HandCoins, Receipt, Plus,
@@ -57,8 +59,13 @@ const SIZES = { inline: 18, chip: 22, tabBar: 24 };
  *   else stays 'regular'.
  * - `color` overrides the default; when omitted, active icons use the app's
  *   accent (teal) and inactive icons use muted text — both from `colors`.
+ * - `weight` overrides the active-based default entirely, for the rare case
+ *   that needs a specific stroke weight rather than a state indicator. Note
+ *   'fill' isn't just "thicker" for every glyph — some render as a solid
+ *   shape (e.g. Plus becomes a filled square with a cutout). Use 'bold' for
+ *   "thicker but still an outline".
  */
-export function AppIcon({ name, size = 'inline', active = false, color }) {
+export function AppIcon({ name, size = 'inline', active = false, color, weight }) {
     const Glyph = ICONS[name];
     if (!Glyph) {
         if (__DEV__) console.warn(`[AppIcon] Unknown icon name: "${name}"`);
@@ -66,12 +73,13 @@ export function AppIcon({ name, size = 'inline', active = false, color }) {
     }
     const resolvedColor = color || (active ? colors.teal : colors.textMuted);
     const resolvedSize = typeof size === 'number' ? size : (SIZES[size] ?? SIZES.inline);
+    const resolvedWeight = weight || (active ? 'fill' : 'regular');
 
     return (
         <Glyph
             size={resolvedSize}
             color={resolvedColor}
-            weight={active ? 'fill' : 'regular'}
+            weight={resolvedWeight}
         />
     );
 }

@@ -11,7 +11,7 @@ export default function FabTabButton({ onPress }) {
     return (
         <View style={s.wrap} pointerEvents="box-none">
             <TouchableOpacity style={s.button} activeOpacity={0.85} onPress={onPress}>
-                <AppIcon name="newOrder" size={28} color={colors.bg} />
+                <AppIcon name="newOrder" size={28} color={colors.bg} weight="bold" />
             </TouchableOpacity>
         </View>
     );
