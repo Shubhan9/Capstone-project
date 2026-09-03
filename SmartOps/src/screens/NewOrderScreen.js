@@ -4,6 +4,7 @@ import {
     TextInput, StyleSheet, Alert, Modal, KeyboardAvoidingView, Platform, Keyboard,
 } from 'react-native';
 import { getProductByBarcode, recordSale, searchCustomers, createCustomer, updateCustomerDetails, getCustomerBalance } from '../database/actions';
+import { useAppBadges } from '../hooks/useAppBadges';
 import BarcodeScanner from '../../components/BarcodeScanner';
 import { Card, PrimaryButton, GhostButton, Divider, EmptyState } from '../../components/UI';
 import { AppIcon } from '../theme/icons';
@@ -18,6 +19,7 @@ export default function NewOrderScreen({ navigation }) {
     const [creditPhone, setCreditPhone] = useState('');            // inline phone capture, only when credit needs one
     const [paymentMode, setPaymentMode] = useState('cash');
     const [loading, setLoading] = useState(false);
+    const { refresh: refreshBadges } = useAppBadges();
     const [notFoundBarcode, setNotFoundBarcode] = useState(null);  // triggers "add product?" prompt
     const [draftPriceItem, setDraftPriceItem] = useState(null);    // triggers "set price" prompt for legacy test data
     const [existingBalance, setExistingBalance] = useState(null);  // current khata balance for the selected customer
@@ -205,6 +207,7 @@ export default function NewOrderScreen({ navigation }) {
                     unitPrice: i.unitPrice,
                 })),
             });
+            refreshBadges();
 
             Alert.alert(
                 'Order complete',

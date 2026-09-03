@@ -6,6 +6,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { getLowStockProducts, getNearExpiryBatches, getBatchQuantities, getProductsByIds, recordWastage } from '../database/actions';
 import { Card, Badge, EmptyState } from '../../components/UI';
+import { useAppBadges } from '../hooks/useAppBadges';
 import { AppIcon } from '../theme/icons';
 import { colors, spacing, radius, font } from '../theme';
 
@@ -14,6 +15,7 @@ export default function AlertsScreen({ navigation }) {
     const [nearExpiry, setNearExpiry] = useState([]);
     const [refreshing, setRefreshing] = useState(false);
     const [tab, setTab] = useState('expiry');  // 'expiry' | 'stock'
+    const { refresh: refreshBadges } = useAppBadges();
 
     async function load() {
         const [ls, nearExpiryBatches] = await Promise.all([
@@ -56,6 +58,7 @@ export default function AlertsScreen({ navigation }) {
                         try {
                             await recordWastage({ productId: product.id, batchId: batch.id, quantity: remainingQty });
                             await load();
+                            refreshBadges();
                         } catch (e) {
                             Alert.alert('Error', 'Could not record wastage. Please try again.');
                             console.error(e);

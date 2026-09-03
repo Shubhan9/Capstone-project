@@ -13,7 +13,7 @@ import {
     ArrowsClockwise, SignOut, Users, UserPlus,
     WarningCircle, TrendUp, ShoppingCart, Archive,
     Barcode, CheckCircle, WifiSlash, Flashlight, Keyboard,
-    X, CaretRight, MapPin,
+    X, CaretRight, MapPin, Eye, EyeSlash,
 } from 'phosphor-react-native';
 import { colors } from './index';
 
@@ -42,6 +42,8 @@ const ICONS = {
     close: X,
     chevron: CaretRight,
     location: MapPin,
+    show: Eye,
+    hide: EyeSlash,
 };
 
 // Three sizes only: inline text/list rows, the bottom tab bar, and action chips

@@ -6,6 +6,7 @@ import {
 import { getProductByBarcode, recordStockIn, getProductById } from '../database/actions';
 import BarcodeScanner from '../../components/BarcodeScanner';
 import { Card, PrimaryButton, GhostButton } from '../../components/UI';
+import { useAppBadges } from '../hooks/useAppBadges';
 import { AppIcon } from '../theme/icons';
 import { colors, spacing, radius, font } from '../theme';
 
@@ -18,6 +19,7 @@ export default function StockInScreen({ navigation, route }) {
     const [product, setProduct] = useState(null);
     const [form, setForm] = useState(INIT_FORM);
     const [loading, setLoading] = useState(false);
+    const { refresh: refreshBadges } = useAppBadges();
 
     // Pre-select the product when opened from an alert/inventory ("Record stock-in"),
     // so the user isn't forced to re-scan something already in the catalog.
@@ -84,6 +86,7 @@ export default function StockInScreen({ navigation, route }) {
                 expiryDate: expiry,
                 costPrice: parseFloat(costPrice) || 0,
             });
+            refreshBadges();
 
             Alert.alert(
                 'Stock recorded ✓',

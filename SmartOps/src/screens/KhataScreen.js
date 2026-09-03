@@ -9,6 +9,7 @@ import {
     getOutstandingCustomers, getCustomerLedger, recordRepayment,
 } from '../database/actions';
 import { PrimaryButton, GhostButton, EmptyState } from '../../components/UI';
+import { useAppBadges } from '../hooks/useAppBadges';
 import { AppIcon } from '../theme/icons';
 import { colors, spacing, radius, font } from '../theme';
 
@@ -20,6 +21,7 @@ export default function KhataScreen({ navigation }) {
     const [loadingLedger, setLoadingLedger] = useState(false);
     const [payAmount, setPayAmount] = useState('');
     const [saving, setSaving] = useState(false);
+    const { refresh: refreshBadges } = useAppBadges();
 
     const load = useCallback(async () => {
         const outstanding = await getOutstandingCustomers();
@@ -71,6 +73,7 @@ export default function KhataScreen({ navigation }) {
             await recordRepayment({ customerId: selected.customer.id, amount });
             closeCustomer();
             await load();
+            refreshBadges();
         } catch (e) {
             Alert.alert('Error', 'Could not record repayment. Please try again.');
             console.error(e);

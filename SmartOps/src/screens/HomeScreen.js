@@ -14,6 +14,7 @@ export default function HomeScreen({ navigation, name }) {
     const [todaySales, setTodaySales] = useState({ count: 0, total: 0 });
     const [recentOrders, setRecentOrders] = useState([]);
     const [refreshing, setRefreshing] = useState(false);
+    const [amountHidden, setAmountHidden] = useState(false);
 
     async function load() {
         const [sales, recent] = await Promise.all([
@@ -62,17 +63,31 @@ export default function HomeScreen({ navigation, name }) {
                     </TouchableOpacity>
                 </View>
 
-                {/* Today's number */}
-                <View style={s.revenueCard}>
+                {/* Today's number — the whole card opens Day Summary; the eye
+                    toggle is a nested touchable and swallows its own taps. */}
+                <TouchableOpacity
+                    style={s.revenueCard}
+                    onPress={() => navigation.navigate('DaySummary')}
+                    activeOpacity={0.85}
+                >
                     <View style={s.revenueHeaderRow}>
                         <Text style={s.revenueLabel}>TODAY&apos;S REVENUE</Text>
-                        <TouchableOpacity onPress={() => navigation.navigate('DaySummary')} activeOpacity={0.7}>
-                            <Text style={s.daySummaryLink}>Day summary ›</Text>
+                        <TouchableOpacity
+                            onPress={() => setAmountHidden(h => !h)}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                            <AppIcon name={amountHidden ? 'hide' : 'show'} size="inline" color={colors.textMuted} />
                         </TouchableOpacity>
                     </View>
-                    <Text style={s.revenueValue}>₹{todaySales.total.toFixed(0)}</Text>
-                    <Text style={s.revenueSub}>{todaySales.count} orders today</Text>
-                </View>
+                    <Text style={s.revenueValue}>{amountHidden ? '₹••••' : `₹${todaySales.total.toFixed(0)}`}</Text>
+                    <View style={s.revenueFooterRow}>
+                        <Text style={s.revenueSub}>{todaySales.count} orders today</Text>
+                        <View style={s.revenueFooterHint}>
+                            <Text style={s.daySummaryLink}>Day summary</Text>
+                            <AppIcon name="chevron" size="inline" color={colors.teal} />
+                        </View>
+                    </View>
+                </TouchableOpacity>
 
                 {/* One consolidated alert row — each number lives on the tab it
                     belongs to; this is a link into that tab, not a restated count. */}
@@ -187,9 +202,11 @@ const s = StyleSheet.create({
     },
     revenueHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.xs },
     revenueLabel: { color: colors.textSecondary, fontSize: font.xs, fontWeight: '700', letterSpacing: 1.5 },
-    daySummaryLink: { color: colors.teal, fontSize: font.xs, fontWeight: '700' },
     revenueValue: { color: colors.white, fontSize: 44, fontWeight: '800', letterSpacing: -1 },
-    revenueSub: { color: colors.textMuted, fontSize: font.sm, marginTop: spacing.xs },
+    revenueFooterRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.xs },
+    revenueSub: { color: colors.textMuted, fontSize: font.sm },
+    revenueFooterHint: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+    daySummaryLink: { color: colors.teal, fontSize: font.xs, fontWeight: '700' },
 
     alertRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg },
     alertChip: {

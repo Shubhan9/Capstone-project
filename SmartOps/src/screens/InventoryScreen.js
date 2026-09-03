@@ -7,6 +7,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { getAllProducts, getStockLevels, updateProduct } from '../database/actions';
 import { Badge, EmptyState, PrimaryButton, GhostButton } from '../../components/UI';
+import { useAppBadges } from '../hooks/useAppBadges';
 import { AppIcon } from '../theme/icons';
 import { colors, spacing, radius, font } from '../theme';
 
@@ -19,6 +20,7 @@ export default function InventoryScreen({ navigation }) {
     const [editing, setEditing] = useState(null);   // product being edited
     const [editForm, setEditForm] = useState({ sellingPrice: '', reorderLevel: '' });
     const [saving, setSaving] = useState(false);
+    const { refresh: refreshBadges } = useAppBadges();
 
     async function load() {
         const prods = await getAllProducts();
@@ -50,6 +52,7 @@ export default function InventoryScreen({ navigation }) {
             await updateProduct({ productId: editing.id, sellingPrice: price, reorderLevel: reorder });
             setEditing(null);
             await load();
+            refreshBadges();
         } catch (e) {
             Alert.alert('Error', 'Could not save changes. Please try again.');
             console.error(e);
