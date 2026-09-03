@@ -190,7 +190,8 @@ export default function InventoryScreen({ navigation }) {
                     style={s.modalOverlay}
                     behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                 >
-                    <View style={s.modalBox}>
+                    <TouchableOpacity style={s.modalBackdrop} activeOpacity={1} onPress={() => setEditing(null)}>
+                    <TouchableOpacity activeOpacity={1} onPress={() => {}} style={s.modalBox}>
                         <View style={s.modalHeader}>
                             <View style={{ flex: 1 }}>
                                 <Text style={s.modalTitle} numberOfLines={1}>{editing?.name}</Text>
@@ -234,7 +235,8 @@ export default function InventoryScreen({ navigation }) {
                             onPress={() => { const id = editing.id; setEditing(null); navigation.navigate('StockIn', { productId: id }); }}
                             style={{ marginTop: spacing.sm }}
                         />
-                    </View>
+                    </TouchableOpacity>
+                    </TouchableOpacity>
                 </KeyboardAvoidingView>
             </Modal>
         </View>
@@ -315,6 +317,7 @@ const s = StyleSheet.create({
     fabText: { color: colors.bg, fontSize: font.md, fontWeight: '700' },
 
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' },
+    modalBackdrop: { flex: 1, width: '100%', justifyContent: 'flex-end' },
     modalBox: {
         backgroundColor: colors.bgCard,
         borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl,
@@ -324,7 +327,7 @@ const s = StyleSheet.create({
     modalHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: spacing.lg },
     modalTitle: { color: colors.textPrimary, fontSize: font.xl, fontWeight: '700' },
     modalSub: { color: colors.textMuted, fontSize: font.sm, marginTop: 2 },
-    modalClose: { color: colors.textMuted, fontSize: font.lg, padding: 4 },
+    modalClose: { color: colors.red, fontSize: font.lg, padding: 4 },
     inputLabel: {
         color: colors.textMuted, fontSize: font.xs, fontWeight: '700', letterSpacing: 1,
         marginBottom: spacing.xs, marginTop: spacing.md,

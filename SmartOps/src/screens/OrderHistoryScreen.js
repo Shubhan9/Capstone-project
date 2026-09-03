@@ -230,20 +230,20 @@ export default function OrderHistoryScreen({ navigation }) {
                                 />
                             </View>
                         </View>
-                        <Text style={s.chevron}>{'>'}</Text>
+                        <Text style={s.chevron}>›</Text>
                     </TouchableOpacity>
                 )}
             />
 
             <Modal visible={!!selected} transparent animationType="slide" onRequestClose={() => setSelected(null)}>
-                <View style={s.modalOverlay}>
-                    <View style={s.modalBox}>
+                <TouchableOpacity style={s.modalOverlay} activeOpacity={1} onPress={() => setSelected(null)}>
+                    <TouchableOpacity activeOpacity={1} onPress={() => {}} style={s.modalBox}>
                         <View style={s.modalHeader}>
                             <Text style={s.modalTitle}>
                                 Order #{selected?.id.slice(-6).toUpperCase()}
                             </Text>
                             <TouchableOpacity onPress={() => setSelected(null)}>
-                                <Text style={s.modalClose}>X</Text>
+                                <Text style={s.modalClose}>✕</Text>
                             </TouchableOpacity>
                         </View>
 
@@ -282,8 +282,8 @@ export default function OrderHistoryScreen({ navigation }) {
                             <Text style={s.modalTotalLabel}>Total</Text>
                             <Text style={s.modalTotalValue}>₹{selected?.totalAmount.toFixed(2)}</Text>
                         </View>
-                    </View>
-                </View>
+                    </TouchableOpacity>
+                </TouchableOpacity>
             </Modal>
         </View>
     );
@@ -398,7 +398,7 @@ const s = StyleSheet.create({
         alignItems: 'center', marginBottom: spacing.md,
     },
     modalTitle: { color: colors.textPrimary, fontSize: font.lg, fontWeight: '700' },
-    modalClose: { color: colors.textMuted, fontSize: font.lg, padding: 4 },
+    modalClose: { color: colors.red, fontSize: font.lg, padding: 4 },
     modalMeta: {
         flexDirection: 'row', justifyContent: 'space-between',
         alignItems: 'center', marginBottom: spacing.lg,

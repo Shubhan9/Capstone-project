@@ -86,12 +86,11 @@ export default function HomeScreen({ navigation, onLogout, name }) {
             >
                 {/* Header */}
                 <View style={s.header}>
-                    <View>
+                    <View style={s.headerLeft}>
                         <Text style={s.greeting}>Good {getGreeting()} 👋</Text>
-                        <Text style={s.shopName}>{name}</Text>
+                        <Text style={s.shopName} numberOfLines={1}>{name}</Text>
                         <View style={s.statusRow}>
                             <View style={[s.statusDot, { backgroundColor: online ? colors.teal : colors.textMuted }]} />
-                            <Text style={s.statusText}>{online ? 'Online · syncing' : 'Offline · saved on device'}</Text>
                         </View>
                     </View>
                     <TouchableOpacity
@@ -274,9 +273,11 @@ const s = StyleSheet.create({
         paddingTop: spacing.xl,
     },
     greeting: { color: colors.textSecondary, fontSize: font.sm, marginBottom: 4, letterSpacing: 0.5 },
+    headerLeft: { flex: 1, marginRight: spacing.md },
     shopName: { color: colors.white, fontSize: 28, fontWeight: '800', letterSpacing: -0.5 },
     profileAvatar: {
         width: 44, height: 44, borderRadius: 22,
+        flexShrink: 0,
         backgroundColor: colors.bgInput,
         alignItems: 'center', justifyContent: 'center',
         borderWidth: 1, borderColor: colors.borderLight,
@@ -290,7 +291,6 @@ const s = StyleSheet.create({
     },
     statusRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
     statusDot: { width: 7, height: 7, borderRadius: 4 },
-    statusText: { color: colors.textMuted, fontSize: font.xs, fontWeight: '600' },
 
     revenueCard: {
         backgroundColor: colors.bgCard,

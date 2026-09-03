@@ -140,7 +140,8 @@ export default function KhataScreen({ navigation }) {
                     style={s.modalOverlay}
                     behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                 >
-                    <View style={s.modalBox}>
+                    <TouchableOpacity style={s.modalBackdrop} activeOpacity={1} onPress={closeCustomer}>
+                    <TouchableOpacity activeOpacity={1} onPress={() => {}} style={s.modalBox}>
                         <View style={s.modalHeader}>
                             <View>
                                 <Text style={s.modalTitle}>{selected?.customer?.name}</Text>
@@ -213,7 +214,8 @@ export default function KhataScreen({ navigation }) {
                         )}
 
                         <GhostButton label="Close" onPress={closeCustomer} style={{ marginTop: spacing.md }} />
-                    </View>
+                    </TouchableOpacity>
+                    </TouchableOpacity>
                 </KeyboardAvoidingView>
             </Modal>
         </View>
@@ -259,6 +261,7 @@ const s = StyleSheet.create({
     balanceLabel: { color: colors.textMuted, fontSize: font.xs },
 
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' },
+    modalBackdrop: { flex: 1, width: '100%', justifyContent: 'flex-end' },
     modalBox: {
         backgroundColor: colors.bgCard,
         borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl,
@@ -271,7 +274,7 @@ const s = StyleSheet.create({
     },
     modalTitle: { color: colors.textPrimary, fontSize: font.xl, fontWeight: '700' },
     modalPhone: { color: colors.textMuted, fontSize: font.sm, marginTop: 2 },
-    modalClose: { color: colors.textMuted, fontSize: font.lg, padding: 4 },
+    modalClose: { color: colors.red, fontSize: font.lg, padding: 4 },
 
     modalBalanceRow: {
         flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
