@@ -3,7 +3,7 @@ import {
     View, Text, ScrollView, TouchableOpacity,
     TextInput, StyleSheet, Alert, Modal, KeyboardAvoidingView, Platform, Keyboard,
 } from 'react-native';
-import { getProductByBarcode, recordSale, upsertCustomer, getCustomerByPhone, getCustomerBalance } from '../database/actions';
+import { getProductByBarcode, recordSale, searchCustomers, createCustomer, updateCustomerDetails, getCustomerBalance } from '../database/actions';
 import BarcodeScanner from '../../components/BarcodeScanner';
 import { Card, PrimaryButton, GhostButton, Divider, EmptyState } from '../../components/UI';
 import { colors, spacing, radius, font } from '../theme';
@@ -11,28 +11,61 @@ import { colors, spacing, radius, font } from '../theme';
 export default function NewOrderScreen({ navigation }) {
     const [scanning, setScanning] = useState(false);
     const [cart, setCart] = useState([]);           // [{ product, quantity, unitPrice, batchId }]
-    const [customerPhone, setCustomerPhone] = useState('');
+    const [customerQuery, setCustomerQuery] = useState('');       // name search text
+    const [customerMatches, setCustomerMatches] = useState([]);   // live search results
+    const [selectedCustomer, setSelectedCustomer] = useState(null); // chosen or newly-created customer
+    const [creditPhone, setCreditPhone] = useState('');            // inline phone capture, only when credit needs one
     const [paymentMode, setPaymentMode] = useState('cash');
     const [loading, setLoading] = useState(false);
     const [notFoundBarcode, setNotFoundBarcode] = useState(null);  // triggers "add product?" prompt
     const [draftPriceItem, setDraftPriceItem] = useState(null);    // triggers "set price" prompt for legacy test data
-    const [existingBalance, setExistingBalance] = useState(null);  // current khata balance for entered phone
+    const [existingBalance, setExistingBalance] = useState(null);  // current khata balance for the selected customer
     const [priceEdit, setPriceEdit] = useState(null);              // { index, value } — discount / price override
 
-    // Look up the customer's current khata balance once a full phone is entered.
+    // Live customer search as the shopkeeper types a name (or phone/address —
+    // searchCustomers matches all three). Cleared once a customer is selected.
     useEffect(() => {
         let active = true;
         (async () => {
-            const phone = customerPhone.trim();
-            if (phone.length < 10) { setExistingBalance(null); return; }
-            const customer = await getCustomerByPhone(phone);
-            if (!active) return;
-            if (!customer) { setExistingBalance(null); return; }
-            const balance = await getCustomerBalance(customer.id);
+            if (selectedCustomer || !customerQuery.trim()) { setCustomerMatches([]); return; }
+            const matches = await searchCustomers(customerQuery);
+            if (active) setCustomerMatches(matches);
+        })();
+        return () => { active = false; };
+    }, [customerQuery, selectedCustomer]);
+
+    // Look up the selected customer's current khata balance.
+    useEffect(() => {
+        let active = true;
+        (async () => {
+            if (!selectedCustomer) { setExistingBalance(null); return; }
+            const balance = await getCustomerBalance(selectedCustomer.id);
             if (active) setExistingBalance(balance);
         })();
         return () => { active = false; };
-    }, [customerPhone]);
+    }, [selectedCustomer]);
+
+    function selectCustomer(customer) {
+        setSelectedCustomer(customer);
+        setCustomerQuery('');
+        setCustomerMatches([]);
+    }
+
+    function clearCustomer() {
+        setSelectedCustomer(null);
+        setCustomerQuery('');
+        setCustomerMatches([]);
+        setCreditPhone('');
+    }
+
+    // The search above already gave the shopkeeper a chance to pick an existing
+    // match — reaching here means this is genuinely a new person.
+    async function addNewCustomer() {
+        const name = customerQuery.trim();
+        if (!name) return;
+        const created = await createCustomer({ name });
+        selectCustomer(created);
+    }
 
     // ── Barcode scanned ────────────────────────────────────────────────────────
     async function handleScan(barcode) {
@@ -129,25 +162,37 @@ export default function NewOrderScreen({ navigation }) {
     async function handleCheckout() {
         if (cart.length === 0) return;
 
-        // Credit sales must be attributed to a customer so the khata balance can be tracked.
-        if (paymentMode === 'credit' && customerPhone.trim().length < 10) {
-            return Alert.alert(
-                'Customer required for credit',
-                'A khata (credit) sale needs a customer phone number so you can track what they owe.'
-            );
+        // Credit sales must be attributed to a customer so the khata balance can be
+        // tracked, and that customer needs a phone number to actually be reachable
+        // about it — cash/UPI sales need neither.
+        let phoneForCredit = null;
+        if (paymentMode === 'credit') {
+            if (!selectedCustomer) {
+                return Alert.alert(
+                    'Customer required for credit',
+                    'Select or add a customer so you can track what they owe.'
+                );
+            }
+            phoneForCredit = selectedCustomer.phone || creditPhone.trim();
+            if (phoneForCredit.length < 10) {
+                return Alert.alert(
+                    'Phone needed for credit',
+                    `Enter a 10-digit phone number for ${selectedCustomer.name} to start a khata.`
+                );
+            }
         }
 
         setLoading(true);
 
         try {
-            let customerId = null;
-            if (customerPhone.trim().length >= 10) {
-                const customer = await upsertCustomer({
-                    name: customerPhone,
-                    phone: customerPhone.trim(),
-                });
-                customerId = customer.id;
+            const customerId = selectedCustomer ? selectedCustomer.id : null;
+
+            // If this credit sale just captured a phone number inline, save it onto
+            // the customer record so future sales/repayments don't ask again.
+            if (paymentMode === 'credit' && selectedCustomer && !selectedCustomer.phone) {
+                await updateCustomerDetails({ customerId, phone: phoneForCredit });
             }
+
             // recordSale uses database.write() — atomic, conflict-safe for multi-user
             await recordSale({
                 customerId,
@@ -163,7 +208,7 @@ export default function NewOrderScreen({ navigation }) {
             Alert.alert(
                 'Order complete',
                 `₹${cartTotal.toFixed(2)} · ${paymentMode.toUpperCase()}`,
-                [{ text: 'Done', onPress: () => { setCart([]); setCustomerPhone(''); navigation.goBack(); } }]
+                [{ text: 'Done', onPress: () => { setCart([]); clearCustomer(); navigation.goBack(); } }]
             );
         } catch (e) {
             Alert.alert('Error', 'Could not save order. Please try again.');
@@ -251,19 +296,61 @@ export default function NewOrderScreen({ navigation }) {
 
                         <Divider />
 
-                        {/* Customer phone (required for credit) */}
+                        {/* Customer — search by name, or add a new one on the spot */}
                         <Text style={s.sectionLabel}>
                             CUSTOMER  ·  {paymentMode === 'credit' ? 'REQUIRED FOR CREDIT' : 'OPTIONAL'}
                         </Text>
-                        <TextInput
-                            style={s.input}
-                            placeholder="Phone number"
-                            placeholderTextColor={colors.textMuted}
-                            keyboardType="phone-pad"
-                            value={customerPhone}
-                            onChangeText={setCustomerPhone}
-                            maxLength={10}
-                        />
+
+                        {selectedCustomer ? (
+                            <View style={s.customerChip}>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={s.customerChipName}>{selectedCustomer.name}</Text>
+                                    {!!selectedCustomer.address && (
+                                        <Text style={s.customerChipSub}>{selectedCustomer.address}</Text>
+                                    )}
+                                </View>
+                                <TouchableOpacity onPress={clearCustomer} style={{ padding: spacing.xs }}>
+                                    <Text style={s.customerChipClear}>✕</Text>
+                                </TouchableOpacity>
+                            </View>
+                        ) : (
+                            <>
+                                <TextInput
+                                    style={s.input}
+                                    placeholder="Search or add customer by name"
+                                    placeholderTextColor={colors.textMuted}
+                                    value={customerQuery}
+                                    onChangeText={setCustomerQuery}
+                                />
+                                {customerQuery.trim().length > 0 && (
+                                    <View style={s.customerDropdown}>
+                                        {customerMatches.map(c => (
+                                            <TouchableOpacity key={c.id} style={s.customerRow} onPress={() => selectCustomer(c)}>
+                                                <Text style={s.customerRowName}>{c.name}</Text>
+                                                {!!c.address && <Text style={s.customerRowSub}>{c.address}</Text>}
+                                            </TouchableOpacity>
+                                        ))}
+                                        <TouchableOpacity style={s.customerRow} onPress={addNewCustomer}>
+                                            <Text style={s.customerAddNew}>+ Add &quot;{customerQuery.trim()}&quot; as new customer</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                )}
+                            </>
+                        )}
+
+                        {/* Only asked for when a credit sale actually needs it */}
+                        {paymentMode === 'credit' && selectedCustomer && !selectedCustomer.phone && (
+                            <TextInput
+                                style={[s.input, { marginTop: spacing.sm }]}
+                                placeholder="Phone number (needed for khata)"
+                                placeholderTextColor={colors.textMuted}
+                                keyboardType="phone-pad"
+                                value={creditPhone}
+                                onChangeText={setCreditPhone}
+                                maxLength={10}
+                            />
+                        )}
+
                         {existingBalance !== null && existingBalance > 0 && (
                             <Text style={s.balanceHint}>
                                 📒 Existing khata balance: ₹{existingBalance.toFixed(2)}
@@ -482,6 +569,29 @@ const s = StyleSheet.create({
         color: colors.amber, fontSize: font.sm, fontWeight: '600',
         marginTop: -spacing.md, marginBottom: spacing.lg,
     },
+
+    customerChip: {
+        flexDirection: 'row', alignItems: 'center',
+        backgroundColor: colors.bgInput,
+        borderRadius: radius.md, borderWidth: 1, borderColor: colors.teal + '55',
+        padding: spacing.md, marginBottom: spacing.lg,
+    },
+    customerChipName: { color: colors.textPrimary, fontSize: font.md, fontWeight: '700' },
+    customerChipSub: { color: colors.textMuted, fontSize: font.xs, marginTop: 2 },
+    customerChipClear: { color: colors.red, fontSize: font.md, fontWeight: '600' },
+
+    customerDropdown: {
+        backgroundColor: colors.bgInput,
+        borderRadius: radius.md, borderWidth: 1, borderColor: colors.border,
+        marginTop: -spacing.md, marginBottom: spacing.lg, overflow: 'hidden',
+    },
+    customerRow: {
+        paddingHorizontal: spacing.md, paddingVertical: spacing.sm + 2,
+        borderBottomWidth: 1, borderBottomColor: colors.border,
+    },
+    customerRowName: { color: colors.textPrimary, fontSize: font.md, fontWeight: '600' },
+    customerRowSub: { color: colors.textMuted, fontSize: font.xs, marginTop: 2 },
+    customerAddNew: { color: colors.teal, fontSize: font.sm, fontWeight: '700' },
 
     paymentRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.xl },
     paymentBtn: {

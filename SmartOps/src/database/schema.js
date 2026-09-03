@@ -1,7 +1,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export default appSchema({
-    version: 3,
+    version: 4,
     tables: [
 
         tableSchema({
@@ -78,7 +78,12 @@ export default appSchema({
             columns: [
                 { name: 'business_id', type: 'string', isIndexed: true },
                 { name: 'name', type: 'string' },
-                { name: 'phone', type: 'string', isIndexed: true },
+                // Optional — only load-bearing for khata (need someone to contact
+                // for an unpaid balance). A cash/UPI-only customer can be name-only.
+                { name: 'phone', type: 'string', isIndexed: true, isOptional: true },
+                // Free text ("Sunrise Society", "Flat 302") — doubles as the
+                // disambiguator shown under a name in the customer search.
+                { name: 'address', type: 'string', isOptional: true },
                 { name: 'segment', type: 'string' },
                 { name: 'last_purchase_at', type: 'number' },
                 { name: 'sync_status', type: 'string' },

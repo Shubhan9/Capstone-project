@@ -11,6 +11,7 @@ export default class Customer extends Model {
     @field('business_id') businessId;
     @field('name') name;
     @field('phone') phone;
+    @field('address') address;
     @field('segment') segment;
     @field('last_purchase_at') lastPurchaseAt;
     @field('sync_status') syncStatus;

@@ -233,6 +233,92 @@ export async function upsertCustomer({ name, phone }) {
     return result;
 }
 
+// Name-first customer lookup for order entry: search local customers by name,
+// phone, or address substring (case-insensitive). Small per-shop dataset, so a
+// full fetch + in-memory filter is simpler and safer than building LIKE-pattern
+// queries — no wildcard-escaping edge cases to get wrong.
+export async function searchCustomers(query) {
+    const bId = getBusinessId();
+    const q = (query || '').trim().toLowerCase();
+    if (!q) return [];
+
+    const all = await database.get('customers')
+        .query(Q.where('business_id', bId))
+        .fetch();
+
+    return all
+        .filter(c =>
+            c.name?.toLowerCase().includes(q) ||
+            c.phone?.toLowerCase().includes(q) ||
+            c.address?.toLowerCase().includes(q)
+        )
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+        .slice(0, 8);
+}
+
+// Explicit "this is a genuinely new person" create — used once the search above
+// has already given the shopkeeper a chance to pick an existing match instead.
+// Unlike upsertCustomer, this never dedupes by phone: the dedup decision already
+// happened in the search UI.
+export async function createCustomer({ name, phone, address }) {
+    const bId = getBusinessId();
+    const now = Date.now();
+
+    const result = await database.write(async () => {
+        return database.get('customers').create(c => {
+            c.businessId = bId;
+            c.name = name;
+            c.phone = phone || null;
+            c.address = address || null;
+            c.segment = 'new';
+            c.lastPurchaseAt = null;
+            c.syncStatus = PENDING;
+            c.updatedAt = now;
+        });
+    });
+
+    syncAfterWrite();
+    return result;
+}
+
+export async function updateCustomerDetails({ customerId, name, phone, address }) {
+    const now = Date.now();
+
+    const result = await database.write(async () => {
+        const customer = await database.get('customers').find(customerId);
+        return customer.update(c => {
+            if (name !== undefined) c.name = name;
+            if (phone !== undefined) c.phone = phone || null;
+            if (address !== undefined) c.address = address || null;
+            c.syncStatus = PENDING;
+            c.updatedAt = now;
+        });
+    });
+
+    syncAfterWrite();
+    return result;
+}
+
+// Full customer list for the Customer Directory screen, sorted by name.
+export async function getAllCustomersDirectory() {
+    const bId = getBusinessId();
+    const rows = await database.get('customers')
+        .query(Q.where('business_id', bId))
+        .fetch();
+    return rows.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+}
+
+// Lifetime order count + total spend for a customer's directory profile.
+export async function getCustomerOrderSummary(customerId) {
+    const orders = await database.get('sale_orders')
+        .query(Q.where('customer_id', customerId))
+        .fetch();
+    return {
+        orderCount: orders.length,
+        totalSpend: orders.reduce((sum, o) => sum + o.totalAmount, 0),
+    };
+}
+
 // ── Khata / Credit Ledger ───────────────────────────────────────────────────────
 // A customer's outstanding balance is DERIVED from the append-only ledger:
 //   balance = Σ credit_sale.amount − Σ repayment.amount   (positive ⇒ they owe us)

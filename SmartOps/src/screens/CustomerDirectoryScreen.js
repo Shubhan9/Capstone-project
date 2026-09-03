@@ -1,0 +1,284 @@
+import React, { useState, useCallback } from 'react';
+import {
+    View, Text, ScrollView, TouchableOpacity, TextInput,
+    StyleSheet, RefreshControl, Modal, KeyboardAvoidingView, Platform, Keyboard, Alert,
+} from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import {
+    getAllCustomersDirectory, createCustomer, updateCustomerDetails,
+    getCustomerBalance, getCustomerOrderSummary,
+} from '../database/actions';
+import { PrimaryButton, GhostButton, EmptyState } from '../../components/UI';
+import { colors, spacing, radius, font } from '../theme';
+
+export default function CustomerDirectoryScreen({ navigation }) {
+    const [customers, setCustomers] = useState([]);
+    const [search, setSearch] = useState('');
+    const [refreshing, setRefreshing] = useState(false);
+
+    const [editing, setEditing] = useState(null);   // existing customer, or {} for "new"
+    const [form, setForm] = useState({ name: '', phone: '', address: '' });
+    const [profile, setProfile] = useState(null);   // { balance, orderCount, totalSpend }
+    const [saving, setSaving] = useState(false);
+
+    const load = useCallback(async () => {
+        setCustomers(await getAllCustomersDirectory());
+    }, []);
+
+    useFocusEffect(useCallback(() => { load(); }, [load]));
+
+    async function onRefresh() {
+        setRefreshing(true);
+        await load();
+        setRefreshing(false);
+    }
+
+    const filtered = customers.filter(c => {
+        const q = search.trim().toLowerCase();
+        if (!q) return true;
+        return (
+            c.name?.toLowerCase().includes(q) ||
+            c.phone?.toLowerCase().includes(q) ||
+            c.address?.toLowerCase().includes(q)
+        );
+    });
+
+    async function openCustomer(customer) {
+        setForm({ name: customer.name || '', phone: customer.phone || '', address: customer.address || '' });
+        setProfile(null);
+        setEditing(customer);
+        const [balance, summary] = await Promise.all([
+            getCustomerBalance(customer.id),
+            getCustomerOrderSummary(customer.id),
+        ]);
+        setProfile({ balance, ...summary });
+    }
+
+    function openNewCustomer() {
+        setForm({ name: '', phone: '', address: '' });
+        setProfile(null);
+        setEditing({});   // truthy with no id → "add" mode
+    }
+
+    function closeModal() {
+        setEditing(null);
+        setForm({ name: '', phone: '', address: '' });
+        setProfile(null);
+    }
+
+    async function saveCustomer() {
+        const name = form.name.trim();
+        if (!name) return Alert.alert('Name required', 'Enter a customer name.');
+
+        setSaving(true);
+        try {
+            if (editing?.id) {
+                await updateCustomerDetails({
+                    customerId: editing.id,
+                    name,
+                    phone: form.phone.trim(),
+                    address: form.address.trim(),
+                });
+            } else {
+                await createCustomer({
+                    name,
+                    phone: form.phone.trim(),
+                    address: form.address.trim(),
+                });
+            }
+            closeModal();
+            await load();
+        } catch (e) {
+            Alert.alert('Error', 'Could not save customer. Please try again.');
+            console.error(e);
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    return (
+        <View style={s.root}>
+            <ScrollView
+                contentContainerStyle={s.scroll}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.teal} />}
+                showsVerticalScrollIndicator={false}
+            >
+                <View style={s.header}>
+                    <TouchableOpacity onPress={() => navigation.goBack()}>
+                        <Text style={s.back}>‹ Back</Text>
+                    </TouchableOpacity>
+                    <Text style={s.title}>Customers</Text>
+                    <TouchableOpacity onPress={openNewCustomer}>
+                        <Text style={s.addBtn}>+ Add</Text>
+                    </TouchableOpacity>
+                </View>
+
+                <TextInput
+                    style={s.search}
+                    placeholder="Search name, phone, or address"
+                    placeholderTextColor={colors.textMuted}
+                    value={search}
+                    onChangeText={setSearch}
+                />
+
+                {filtered.length === 0 ? (
+                    <EmptyState
+                        icon="👥"
+                        title="No customers yet"
+                        subtitle="Add one here, or they'll be added automatically during a sale."
+                    />
+                ) : (
+                    filtered.map(c => (
+                        <TouchableOpacity key={c.id} style={s.row} activeOpacity={0.75} onPress={() => openCustomer(c)}>
+                            <View style={{ flex: 1 }}>
+                                <Text style={s.rowName} numberOfLines={1}>{c.name}</Text>
+                                <Text style={s.rowSub} numberOfLines={1}>
+                                    {[c.phone, c.address].filter(Boolean).join(' · ') || 'No phone or address on file'}
+                                </Text>
+                            </View>
+                            <Text style={s.chevron}>›</Text>
+                        </TouchableOpacity>
+                    ))
+                )}
+            </ScrollView>
+
+            {/* Add / edit customer */}
+            <Modal visible={!!editing} transparent animationType="slide" onRequestClose={closeModal}>
+                <KeyboardAvoidingView style={s.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+                    <TouchableOpacity
+                        style={s.modalBackdrop}
+                        activeOpacity={1}
+                        onPress={() => { Keyboard.dismiss(); closeModal(); }}
+                    >
+                        <TouchableOpacity activeOpacity={1} onPress={() => {}} style={s.modalBox}>
+                            <View style={s.modalHeader}>
+                                <Text style={s.modalTitle}>{editing?.id ? 'Edit Customer' : 'Add Customer'}</Text>
+                                <TouchableOpacity onPress={closeModal}>
+                                    <Text style={s.modalClose}>✕</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            {profile && (
+                                <View style={s.profileRow}>
+                                    <View style={s.profileStat}>
+                                        <Text style={s.profileStatValue}>{profile.orderCount}</Text>
+                                        <Text style={s.profileStatLabel}>orders</Text>
+                                    </View>
+                                    <View style={s.profileStat}>
+                                        <Text style={s.profileStatValue}>₹{profile.totalSpend.toFixed(0)}</Text>
+                                        <Text style={s.profileStatLabel}>lifetime spend</Text>
+                                    </View>
+                                    <View style={s.profileStat}>
+                                        <Text style={[s.profileStatValue, profile.balance > 0 && { color: colors.amber }]}>
+                                            ₹{profile.balance.toFixed(0)}
+                                        </Text>
+                                        <Text style={s.profileStatLabel}>khata due</Text>
+                                    </View>
+                                </View>
+                            )}
+
+                            <Text style={s.inputLabel}>NAME</Text>
+                            <TextInput
+                                style={s.input}
+                                value={form.name}
+                                onChangeText={v => setForm(f => ({ ...f, name: v }))}
+                                placeholder="Customer name"
+                                placeholderTextColor={colors.textMuted}
+                            />
+
+                            <Text style={s.inputLabel}>PHONE (OPTIONAL)</Text>
+                            <TextInput
+                                style={s.input}
+                                value={form.phone}
+                                onChangeText={v => setForm(f => ({ ...f, phone: v }))}
+                                placeholder="10-digit phone number"
+                                placeholderTextColor={colors.textMuted}
+                                keyboardType="phone-pad"
+                                maxLength={10}
+                            />
+
+                            <Text style={s.inputLabel}>ADDRESS (OPTIONAL)</Text>
+                            <TextInput
+                                style={s.input}
+                                value={form.address}
+                                onChangeText={v => setForm(f => ({ ...f, address: v }))}
+                                placeholder="e.g. Sunrise Society, Flat 302"
+                                placeholderTextColor={colors.textMuted}
+                            />
+
+                            <PrimaryButton label="Save" onPress={saveCustomer} loading={saving} style={{ marginTop: spacing.lg }} />
+                            <GhostButton label="Cancel" onPress={closeModal} style={{ marginTop: spacing.sm }} />
+                        </TouchableOpacity>
+                    </TouchableOpacity>
+                </KeyboardAvoidingView>
+            </Modal>
+        </View>
+    );
+}
+
+const s = StyleSheet.create({
+    root: { flex: 1, backgroundColor: colors.bg },
+    scroll: { padding: spacing.lg, paddingBottom: 100 },
+
+    header: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+        paddingTop: spacing.xl, marginBottom: spacing.lg,
+    },
+    back: { color: colors.teal, fontSize: font.md, fontWeight: '600' },
+    title: { color: colors.textPrimary, fontSize: font.lg, fontWeight: '700' },
+    addBtn: { color: colors.teal, fontSize: font.md, fontWeight: '700' },
+
+    search: {
+        backgroundColor: colors.bgInput,
+        borderRadius: radius.md, borderWidth: 1, borderColor: colors.border,
+        color: colors.textPrimary, fontSize: font.md,
+        paddingHorizontal: spacing.md, paddingVertical: 12,
+        marginBottom: spacing.lg,
+    },
+
+    row: {
+        flexDirection: 'row', alignItems: 'center',
+        backgroundColor: colors.bgCard,
+        borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border,
+        padding: spacing.md, marginBottom: spacing.sm,
+    },
+    rowName: { color: colors.textPrimary, fontSize: font.md, fontWeight: '600', marginBottom: 2 },
+    rowSub: { color: colors.textMuted, fontSize: font.xs },
+    chevron: { color: colors.textMuted, fontSize: 22, paddingHorizontal: spacing.xs },
+
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' },
+    modalBackdrop: { flex: 1, width: '100%', justifyContent: 'flex-end' },
+    modalBox: {
+        backgroundColor: colors.bgCard,
+        borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl,
+        borderWidth: 1, borderColor: colors.border,
+        padding: spacing.xl, paddingBottom: 40,
+    },
+    modalHeader: {
+        flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+        marginBottom: spacing.lg,
+    },
+    modalTitle: { color: colors.textPrimary, fontSize: font.xl, fontWeight: '700' },
+    modalClose: { color: colors.red, fontSize: font.lg, padding: 4 },
+
+    profileRow: {
+        flexDirection: 'row',
+        backgroundColor: colors.bgInput,
+        borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border,
+        padding: spacing.md, marginBottom: spacing.lg,
+    },
+    profileStat: { flex: 1, alignItems: 'center' },
+    profileStatValue: { color: colors.textPrimary, fontSize: font.md, fontWeight: '700' },
+    profileStatLabel: { color: colors.textMuted, fontSize: font.xs, marginTop: 2 },
+
+    inputLabel: {
+        color: colors.textMuted, fontSize: font.xs, fontWeight: '700', letterSpacing: 1,
+        marginBottom: spacing.xs, marginTop: spacing.md,
+    },
+    input: {
+        backgroundColor: colors.bgInput,
+        borderRadius: radius.md, borderWidth: 1, borderColor: colors.border,
+        color: colors.textPrimary, fontSize: font.md,
+        paddingHorizontal: spacing.md, paddingVertical: 13,
+    },
+});

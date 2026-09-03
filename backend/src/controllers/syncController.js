@@ -76,7 +76,7 @@ const pull = asyncHandler(async (req, res) => {
         ),
 
         query(
-            `SELECT id, business_id, name, phone, segment,
+            `SELECT id, business_id, name, phone, address, segment,
           last_purchase_at::FLOAT  AS last_purchase_at,
           sync_status,
           updated_at::FLOAT        AS updated_at
@@ -192,18 +192,23 @@ const push = asyncHandler(async (req, res) => {
         }
 
         // ── Customers ─────────────────────────────────────────────────────────────
+        // phone is optional (only required client-side for credit sales) — send
+        // NULL rather than '' so UNIQUE(business_id, phone) never sees two
+        // phone-less customers as "the same" empty string.
         for (const c of upserts(changes.customers)) {
             await client.query(
                 `INSERT INTO customers
-           (id, business_id, name, phone, segment, last_purchase_at, sync_status, updated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,'synced',$7)
+           (id, business_id, name, phone, address, segment, last_purchase_at, sync_status, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,'synced',$8)
          ON CONFLICT (id) DO UPDATE SET
            name             = EXCLUDED.name,
+           phone            = EXCLUDED.phone,
+           address          = EXCLUDED.address,
            segment          = EXCLUDED.segment,
            last_purchase_at = EXCLUDED.last_purchase_at,
            sync_status      = 'synced',
            updated_at       = EXCLUDED.updated_at`,
-                [c.id, businessId, c.name, c.phone, c.segment || 'new',
+                [c.id, businessId, c.name, c.phone || null, c.address || null, c.segment || 'new',
                 c.last_purchase_at || null, c.updated_at ?? now]
             );
         }

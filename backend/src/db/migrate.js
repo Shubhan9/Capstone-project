@@ -143,6 +143,16 @@ const migrations = [
     `CREATE INDEX IF NOT EXISTS idx_ledger_customer    ON ledger_entries(customer_id)`,
     `CREATE INDEX IF NOT EXISTS idx_ledger_updated_at  ON ledger_entries(updated_at)`,
 
+    // ── 010: customers — phone becomes optional, address added ────────────────────
+    // Phone is only load-bearing for khata (need someone to identify/contact for an
+    // unpaid balance); a cash/UPI-only customer can now be saved by name alone.
+    // Address is free text ("Sunrise Society", "Flat 302, B Wing") — it doubles as
+    // the disambiguator shown under a name in the mobile app's customer search.
+    // UNIQUE(business_id, phone) still holds: Postgres never treats two NULLs as
+    // equal, so any number of phone-less customers can coexist under one business.
+    `ALTER TABLE customers ALTER COLUMN phone DROP NOT NULL`,
+    `ALTER TABLE customers ADD COLUMN IF NOT EXISTS address TEXT`,
+
 ];
 
 async function migrate() {

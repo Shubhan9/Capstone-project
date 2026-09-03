@@ -243,6 +243,11 @@ export default function HomeScreen({ navigation, onLogout, name }) {
                             {(stats.lowStock + stats.expiry) > 0 && <Text style={s.menuMeta}>{stats.lowStock + stats.expiry}</Text>}
                         </TouchableOpacity>
 
+                        <TouchableOpacity style={s.menuRow} onPress={() => { setMenuOpen(false); navigation.navigate('Customers'); }} activeOpacity={0.7}>
+                            <Text style={s.menuIcon}>👥</Text>
+                            <Text style={s.menuLabel}>Customers</Text>
+                        </TouchableOpacity>
+
                         <View style={s.menuDivider} />
 
                         <TouchableOpacity style={s.menuRow} onPress={confirmLogout} activeOpacity={0.7}>
