@@ -86,11 +86,12 @@ export default function NewOrderScreen({ navigation }) {
             return;
         }
 
-        // Get earliest-expiry batch for FEFO
+        // Get earliest-expiry batch for FEFO; batches with no expiry (loose
+        // goods) sort last so dated stock is always sold first.
         const batches = await product.stockBatches.fetch();
         const validBatch = batches
-            .filter(b => b.daysUntilExpiry >= 0)
-            .sort((a, b) => a.expiryDate - b.expiryDate)[0];
+            .filter(b => !b.isExpired)
+            .sort((a, b) => (a.expiryDate || Infinity) - (b.expiryDate || Infinity))[0];
 
         // If already in cart, just increment with same price
         const existingRow = cart.find(i => i.product.id === product.id);

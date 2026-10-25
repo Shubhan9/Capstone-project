@@ -44,6 +44,31 @@ export const BarcodeAPI = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Shop profile + staff (online-only, owner manages)
+// ─────────────────────────────────────────────────────────────────────────────
+export const BusinessAPI = {
+    profile: () => apiFetch('/business/profile'),
+    updateProfile: (fields) =>
+        apiFetch('/business/profile', { method: 'PUT', body: JSON.stringify(fields) }),
+    listStaff: () => apiFetch('/staff'),
+    addStaff: (name, phone, password) =>
+        apiFetch('/staff', { method: 'POST', body: JSON.stringify({ name, phone, password }) }),
+    removeStaff: (id) => apiFetch(`/staff/${id}`, { method: 'DELETE' }),
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Voice — the recording goes to our server, which asks Gemini; the API key
+// never lives in the app.
+// ─────────────────────────────────────────────────────────────────────────────
+export const VoiceAPI = {
+    parse: (audioBase64, mimeType) =>
+        apiFetch('/voice/parse', {
+            method: 'POST',
+            body: JSON.stringify({ audio: audioBase64, mime_type: mimeType }),
+        }),
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Analytics (for dashboard and web)
 // ─────────────────────────────────────────────────────────────────────────────
 export const AnalyticsAPI = {

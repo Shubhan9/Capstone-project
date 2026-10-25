@@ -386,7 +386,7 @@ async function getBatchInventoryStats(businessId) {
         category: row.category,
         selling_price: toNumber(row.selling_price),
         batch_no: row.batch_no,
-        expiry_date: Number(row.expiry_date),
+        expiry_date: row.expiry_date == null ? null : Number(row.expiry_date),
         cost_price: toNumber(row.cost_price),
         remaining_units: Math.max(0, toNumber(row.remaining_units)),
         avg_daily_sales: toNumber(row.avg_daily_sales),
@@ -495,6 +495,8 @@ function buildExpiryRiskPayload(batchStats, queryParams = {}) {
     const days = Math.max(parseInt(queryParams.days, 10) || 30, 1);
 
     let items = batchStats
+        // Loose goods stocked without an expiry date can't be at expiry risk.
+        .filter(batch => batch.expiry_date > 0)
         .map(batch => {
             const daysUntilExpiry = Math.floor((batch.expiry_date - Date.now()) / DAY_MS);
             const projectedSellableUnits = Math.max(0, batch.avg_daily_sales * Math.max(daysUntilExpiry, 0));

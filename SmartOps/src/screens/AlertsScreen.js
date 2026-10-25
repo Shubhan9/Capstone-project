@@ -56,7 +56,7 @@ export default function AlertsScreen({ navigation }) {
     function confirmWastage(batch, product, remainingQty) {
         Alert.alert(
             'Mark as wasted?',
-            `Write off ${remainingQty} ${product.unit || 'units'} of ${product.name} (batch ${batch.batchNo}). This removes them from stock and can't be undone.`,
+            `Write off ${remainingQty} ${product.unit || 'units'} of ${product.name} ${batch.batchNo ? `(batch ${batch.batchNo})` : ''}. This removes them from stock and can't be undone.`,
             [
                 { text: 'Cancel', style: 'cancel' },
                 {
@@ -152,7 +152,7 @@ export default function AlertsScreen({ navigation }) {
                                         <View style={s.alertTop}>
                                             <View style={{ flex: 1 }}>
                                                 <Text style={s.alertName}>{product.name}</Text>
-                                                <Text style={s.alertSub}>Batch {batch.batchNo} - {remainingQty} units left</Text>
+                                                <Text style={s.alertSub}>{batch.batchNo ? `Batch ${batch.batchNo} - ` : ''}{remainingQty} units left</Text>
                                             </View>
                                             <Badge
                                                 label={days < 0 ? 'EXPIRED' : days === 0 ? 'TODAY' : `${days}d left`}

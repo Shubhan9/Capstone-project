@@ -39,5 +39,43 @@ export default schemaMigrations({
                 }),
             ],
         },
+        {
+            // v4 -> v5: suppliers + purchase orders, and stock batches remember
+            // which supplier they came from. batch_no/expiry_date becoming
+            // optional needs no step: LokiJS stores whatever the record holds.
+            toVersion: 5,
+            steps: [
+                addColumns({
+                    table: 'stock_batches',
+                    columns: [
+                        { name: 'supplier_id', type: 'string', isOptional: true },
+                    ],
+                }),
+                createTable({
+                    name: 'suppliers',
+                    columns: [
+                        { name: 'business_id', type: 'string', isIndexed: true },
+                        { name: 'name', type: 'string' },
+                        { name: 'phone', type: 'string', isOptional: true },
+                        { name: 'note', type: 'string', isOptional: true },
+                        { name: 'sync_status', type: 'string' },
+                        { name: 'updated_at', type: 'number' },
+                    ],
+                }),
+                createTable({
+                    name: 'purchase_orders',
+                    columns: [
+                        { name: 'business_id', type: 'string', isIndexed: true },
+                        { name: 'supplier_id', type: 'string', isOptional: true, isIndexed: true },
+                        { name: 'status', type: 'string' },
+                        { name: 'items_json', type: 'string' },
+                        { name: 'note', type: 'string', isOptional: true },
+                        { name: 'ordered_at', type: 'number' },
+                        { name: 'sync_status', type: 'string' },
+                        { name: 'updated_at', type: 'number' },
+                    ],
+                }),
+            ],
+        },
     ],
 });

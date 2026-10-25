@@ -3,7 +3,8 @@ import {
     View, Text, ScrollView, TouchableOpacity,
     TextInput, StyleSheet, Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
-import { getProductByBarcode, recordStockIn, getProductById } from '../database/actions';
+import { getProductByBarcode, recordStockIn, getProductById, getSuppliers } from '../database/actions';
+import { useSession, shopNeedsBatchTracking } from '../services/session';
 import BarcodeScanner from '../../components/BarcodeScanner';
 import { Card, PrimaryButton, GhostButton } from '../../components/UI';
 import { useAppBadges } from '../hooks/useAppBadges';
@@ -19,7 +20,21 @@ export default function StockInScreen({ navigation, route }) {
     const [product, setProduct] = useState(null);
     const [form, setForm] = useState(INIT_FORM);
     const [loading, setLoading] = useState(false);
+    const [suppliers, setSuppliers] = useState([]);
+    const [supplierId, setSupplierId] = useState(null);
     const { refresh: refreshBadges } = useAppBadges();
+    const { business } = useSession();
+    // Pharmacies (and any Schedule H drug) must record batch + expiry; a kirana
+    // receiving loose rice or sugar usually has neither, so it's optional there.
+    const batchRequired = shopNeedsBatchTracking(business?.type) || !!product?.scheduleH;
+
+    useEffect(() => {
+        const unsub = navigation.addListener('focus', () => {
+            getSuppliers().then(setSuppliers).catch(() => {});
+        });
+        getSuppliers().then(setSuppliers).catch(() => {});
+        return unsub;
+    }, [navigation]);
 
     // Pre-select the product when opened from an alert/inventory ("Record stock-in"),
     // so the user isn't forced to re-scan something already in the catalog.
@@ -71,20 +86,24 @@ export default function StockInScreen({ navigation, route }) {
 
         if (!product) return Alert.alert('Scan a product first');
         if (!quantity || isNaN(+quantity)) return Alert.alert('Enter a valid quantity');
-        if (!batchNo.trim()) return Alert.alert('Enter batch number');
-        if (!expiryDate.trim()) return Alert.alert('Enter expiry date');
+        if (batchRequired && !batchNo.trim()) return Alert.alert('Enter batch number');
+        if (batchRequired && !expiryDate.trim()) return Alert.alert('Enter expiry date');
 
-        const expiry = parseExpiryToTimestamp(expiryDate);
-        if (isNaN(expiry)) return Alert.alert('Invalid date format. Use DD/MM/YYYY');
+        let expiry = null;
+        if (expiryDate.trim()) {
+            expiry = parseExpiryToTimestamp(expiryDate.trim());
+            if (isNaN(expiry)) return Alert.alert('Invalid date format. Use DD/MM/YYYY');
+        }
 
         setLoading(true);
         try {
             await recordStockIn({
                 productId: product.id,
                 quantity: parseInt(quantity, 10),
-                batchNo: batchNo.trim(),
+                batchNo: batchNo.trim() || null,
                 expiryDate: expiry,
                 costPrice: parseFloat(costPrice) || 0,
+                supplierId,
             });
             refreshBadges();
 
@@ -104,6 +123,7 @@ export default function StockInScreen({ navigation, route }) {
     function reset() {
         setProduct(null);
         setForm(INIT_FORM);
+        setSupplierId(null);
     }
 
     if (scanning) {
@@ -169,7 +189,7 @@ export default function StockInScreen({ navigation, route }) {
                             onChangeText={v => set('quantity', v)}
                         />
 
-                        <Text style={s.inputLabel}>Batch number *</Text>
+                        <Text style={s.inputLabel}>Batch number {batchRequired ? '*' : ' (optional)'}</Text>
                         <TextInput
                             style={s.input}
                             placeholder="e.g. BT2024-001"
@@ -179,7 +199,9 @@ export default function StockInScreen({ navigation, route }) {
                             onChangeText={v => set('batchNo', v)}
                         />
 
-                        <Text style={s.inputLabel}>Expiry date * (DD/MM/YYYY)</Text>
+                        <Text style={s.inputLabel}>
+                            Expiry date {batchRequired ? '*' : ' (optional)'} (DD/MM/YYYY)
+                        </Text>
                         <TextInput
                             style={s.input}
                             placeholder="e.g. 31/12/2025"
@@ -198,6 +220,22 @@ export default function StockInScreen({ navigation, route }) {
                             value={form.costPrice}
                             onChangeText={v => set('costPrice', v)}
                         />
+
+                        <Text style={s.inputLabel}>Supplier  (optional)</Text>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chipRow}>
+                            {suppliers.map(sp => (
+                                <TouchableOpacity
+                                    key={sp.id}
+                                    style={[s.chip, supplierId === sp.id && s.chipActive]}
+                                    onPress={() => setSupplierId(supplierId === sp.id ? null : sp.id)}
+                                >
+                                    <Text style={[s.chipText, supplierId === sp.id && s.chipTextActive]}>{sp.name}</Text>
+                                </TouchableOpacity>
+                            ))}
+                            <TouchableOpacity style={s.chip} onPress={() => navigation.navigate('Suppliers', { addNew: true })}>
+                                <Text style={s.chipText}>+ New supplier</Text>
+                            </TouchableOpacity>
+                        </ScrollView>
 
                         {/* Expiry warning preview */}
                         {form.expiryDate.length >= 8 && (() => {
@@ -291,4 +329,13 @@ const s = StyleSheet.create({
         padding: spacing.md, marginTop: spacing.md,
     },
     expiryHintText: { fontSize: font.sm, fontWeight: '600' },
+
+    chipRow: { gap: spacing.sm, paddingVertical: 2 },
+    chip: {
+        borderWidth: 1, borderColor: colors.border, borderRadius: radius.full ?? 999,
+        paddingHorizontal: 14, paddingVertical: 8, backgroundColor: colors.bgInput,
+    },
+    chipActive: { borderColor: colors.teal, backgroundColor: colors.teal + '22' },
+    chipText: { color: colors.textSecondary, fontSize: font.sm, fontWeight: '600' },
+    chipTextActive: { color: colors.teal },
 });

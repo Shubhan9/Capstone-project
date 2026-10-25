@@ -76,16 +76,17 @@ export async function getAllProducts() {
 
 // ── Stock In ──────────────────────────────────────────────────────────────────
 
-export async function recordStockIn({ productId, quantity, batchNo, expiryDate, costPrice }) {
+export async function recordStockIn({ productId, quantity, batchNo, expiryDate, costPrice, supplierId }) {
     const now = Date.now();
 
     const result = await database.write(async () => {
         const batch = await database.get('stock_batches').create(b => {
             b.productId = productId;
             b.quantity = quantity;
-            b.batchNo = batchNo;
-            b.expiryDate = expiryDate;
+            b.batchNo = batchNo || null;         // optional for loose goods
+            b.expiryDate = expiryDate || null;
             b.costPrice = costPrice || 0;
+            b.supplierId = supplierId || null;
             b.syncStatus = PENDING;
             b.createdAt = now;
             b.updatedAt = now;
@@ -480,6 +481,8 @@ export async function getNearExpiryBatches(days = 30) {
     return database.get('stock_batches')
         .query(
             Q.where('product_id', Q.oneOf(productIds)),
+            Q.where('expiry_date', Q.notEq(null)),
+            Q.where('expiry_date', Q.gt(0)),
             Q.where('expiry_date', Q.lte(cutoff))
         )
         .fetch();
@@ -576,4 +579,129 @@ export async function getDaySummary() {
     const repaid = ledgerToday.filter(e => e.type === 'repayment').reduce((sum, e) => sum + e.amount, 0);
 
     return { orderCount: orders.length, revenue, byMode, itemsSold, wastageUnits, creditGiven, repaid };
+}
+
+// ── Suppliers & purchase orders ─────────────────────────────────────────────────
+
+export async function getSuppliers() {
+    const bId = getBusinessId();
+    const rows = await database.get('suppliers')
+        .query(Q.where('business_id', bId))
+        .fetch();
+    return rows.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+}
+
+export async function getSupplierById(id) {
+    if (!id) return null;
+    try {
+        return await database.get('suppliers').find(id);
+    } catch {
+        return null;
+    }
+}
+
+export async function saveSupplier({ supplierId, name, phone, note }) {
+    const bId = getBusinessId();
+    const now = Date.now();
+
+    const result = await database.write(async () => {
+        if (supplierId) {
+            const supplier = await database.get('suppliers').find(supplierId);
+            return supplier.update(sp => {
+                sp.name = name;
+                sp.phone = phone || null;
+                sp.note = note || null;
+                sp.syncStatus = PENDING;
+                sp.updatedAt = now;
+            });
+        }
+        return database.get('suppliers').create(sp => {
+            sp.businessId = bId;
+            sp.name = name;
+            sp.phone = phone || null;
+            sp.note = note || null;
+            sp.syncStatus = PENDING;
+            sp.updatedAt = now;
+        });
+    });
+
+    syncAfterWrite();
+    return result;
+}
+
+// What we've bought from a supplier, newest first — derived from the stock
+// batches tagged with that supplier at stock-in.
+export async function getSupplierPurchases(supplierId) {
+    const batches = await database.get('stock_batches')
+        .query(Q.where('supplier_id', supplierId), Q.sortBy('created_at', Q.desc))
+        .fetch();
+    const productMap = await getProductsByIds(batches.map(b => b.productId));
+    return batches.map(b => ({ batch: b, product: productMap.get(b.productId) }));
+}
+
+export async function getPurchaseOrders() {
+    const bId = getBusinessId();
+    return database.get('purchase_orders')
+        .query(Q.where('business_id', bId), Q.sortBy('ordered_at', Q.desc))
+        .fetch();
+}
+
+export async function createPurchaseOrder({ supplierId, items, note, status = 'draft' }) {
+    const bId = getBusinessId();
+    const now = Date.now();
+
+    const result = await database.write(async () => {
+        return database.get('purchase_orders').create(po => {
+            po.businessId = bId;
+            po.supplierId = supplierId || null;
+            po.status = status;
+            po.itemsJson = JSON.stringify(items);
+            po.note = note || null;
+            po.orderedAt = now;
+            po.syncStatus = PENDING;
+            po.updatedAt = now;
+        });
+    });
+
+    syncAfterWrite();
+    return result;
+}
+
+export async function setPurchaseOrderStatus(orderId, status) {
+    const now = Date.now();
+    const result = await database.write(async () => {
+        const po = await database.get('purchase_orders').find(orderId);
+        return po.update(p => {
+            p.status = status;
+            p.syncStatus = PENDING;
+            p.updatedAt = now;
+        });
+    });
+    syncAfterWrite();
+    return result;
+}
+
+// ── Bills ───────────────────────────────────────────────────────────────────────
+
+// Everything a printed/shared bill needs for one order, from the local DB.
+export async function getOrderForBill(orderId) {
+    const order = await database.get('sale_orders').find(orderId);
+    const items = await database.get('sale_items')
+        .query(Q.where('order_id', orderId))
+        .fetch();
+    const productMap = await getProductsByIds(items.map(i => i.productId));
+    const customer = order.customerId
+        ? (await getCustomersByIds([order.customerId])).get(order.customerId) ?? null
+        : null;
+    return {
+        order,
+        customer,
+        lines: items.map(i => ({
+            name: productMap.get(i.productId)?.name ?? 'Item',
+            unit: productMap.get(i.productId)?.unit ?? '',
+            quantity: i.quantity,
+            unitPrice: i.unitPrice,
+            amount: i.quantity * i.unitPrice,
+        })),
+    };
 }

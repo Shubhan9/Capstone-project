@@ -1,5 +1,7 @@
 import database from './index';
-import { restoreSession, startAutoSync } from '../sync/syncEngine';
+import { restoreSession, startAutoSync, getAuthToken } from '../sync/syncEngine';
+import { loadSession, saveSession } from '../services/session';
+import { BusinessAPI } from '../services/api';
 
 function wait(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -9,6 +11,7 @@ export async function initApp() {
     console.log('App init start');
     // 1. Restore auth + businessId
     await restoreSession();
+    await loadSession();
 
     // 2. Force DB to initialize (IMPORTANT)
     try {
@@ -23,6 +26,14 @@ export async function initApp() {
 
     // 4. Start sync ONLY AFTER DB READY
     startAutoSync();
+
+    // 5. Refresh the cached shop profile/role in the background (best effort —
+    //    offline just keeps the cached copy).
+    if (getAuthToken()) {
+        BusinessAPI.profile()
+            .then(res => saveSession({ business: res.business, role: res.role, staff: res.staff }))
+            .catch(() => {});
+    }
 
     console.log('App init complete');
 }
