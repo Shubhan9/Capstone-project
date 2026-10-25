@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const { body } = require('express-validator');
 
-const { authenticate } = require('../middleware/auth');
+const { authenticate, requireOwner } = require('../middleware/auth');
 const { validate } = require('../middleware/errors');
 
 const auth = require('../controllers/authController');
@@ -9,6 +9,8 @@ const barcode = require('../controllers/barcodeController');
 const sync = require('../controllers/syncController');
 const products = require('../controllers/productsController');
 const analytics = require('../controllers/analyticsController');
+const business = require('../controllers/businessController');
+const voice = require('../controllers/voiceController');
 
 // ── Health check ──────────────────────────────────────────────────────────────
 router.get('/health', (req, res) => {
@@ -21,6 +23,16 @@ router.post('/auth/login', auth.loginValidation, validate, auth.login);
 
 // ── All routes below require JWT ──────────────────────────────────────────────
 router.use(authenticate);
+
+// ── Shop profile + staff ──────────────────────────────────────────────────────
+router.get('/business/profile', business.getProfile);
+router.put('/business/profile', requireOwner, business.profileValidation, validate, business.updateProfile);
+router.get('/staff', requireOwner, business.listStaff);
+router.post('/staff', requireOwner, business.staffValidation, validate, business.addStaff);
+router.delete('/staff/:id', requireOwner, business.removeStaff);
+
+// ── Voice (Gemini) ────────────────────────────────────────────────────────────
+router.post('/voice/parse', voice.parse);
 
 // ── Barcode lookup ────────────────────────────────────────────────────────────
 router.get('/barcode/search', barcode.search);   // ?q=parle
