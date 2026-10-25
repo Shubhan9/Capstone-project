@@ -105,7 +105,7 @@ const parse = asyncHandler(async (req, res) => {
         query('SELECT name FROM products WHERE business_id = $1 ORDER BY updated_at DESC LIMIT 300', [req.business.id]),
     ]);
 
-    const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+    const model = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
     const controller = new AbortController();

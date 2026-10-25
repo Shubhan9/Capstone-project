@@ -705,3 +705,70 @@ export async function getOrderForBill(orderId) {
         })),
     };
 }
+
+// ── Voice entry helpers ─────────────────────────────────────────────────────────
+
+// A credit entry not tied to a sale ("Ramesh took ₹200 udhaar") — same ledger
+// row type as a credit sale, just without an order_id.
+export async function recordCreditEntry({ customerId, amount, note }) {
+    const bId = getBusinessId();
+    const now = Date.now();
+
+    const result = await database.write(async () => {
+        return database.get('ledger_entries').create(e => {
+            e.businessId = bId;
+            e.customerId = customerId;
+            e.orderId = null;
+            e.type = 'credit_sale';
+            e.amount = amount;
+            e.note = note || '';
+            e.entryAt = now;
+            e.syncStatus = PENDING;
+            e.updatedAt = now;
+        });
+    });
+
+    syncAfterWrite();
+    return result;
+}
+
+// FEFO: earliest-expiring unexpired batch first; batches with no expiry
+// (loose goods) last. Shared by barcode scanning and voice-prefilled carts.
+export async function pickSaleBatch(product) {
+    const batches = await product.stockBatches.fetch();
+    return batches
+        .filter(b => !b.isExpired)
+        .sort((a, b) => (a.expiryDate || Infinity) - (b.expiryDate || Infinity))[0] ?? null;
+}
+
+const norm = s => (s || '').toLowerCase().replace(/[^a-z0-9ऀ-ॿ ]/g, ' ').replace(/\s+/g, ' ').trim();
+
+// Best local match for a spoken name: exact, then prefix/contains, then the
+// most shared words. Returns null when nothing is close enough.
+function bestNameMatch(rows, spoken) {
+    const q = norm(spoken);
+    if (!q) return null;
+    let best = null;
+    let bestScore = 0;
+    const qWords = q.split(' ');
+    for (const row of rows) {
+        const n = norm(row.name);
+        let score = 0;
+        if (n === q) score = 100;
+        else if (n.startsWith(q) || q.startsWith(n)) score = 80;
+        else if (n.includes(q) || q.includes(n)) score = 60;
+        else score = qWords.filter(w => w.length > 1 && n.split(' ').includes(w)).length * 20;
+        if (score > bestScore) { best = row; bestScore = score; }
+    }
+    return bestScore >= 20 ? best : null;
+}
+
+export async function matchCustomerByName(spoken) {
+    const bId = getBusinessId();
+    const all = await database.get('customers').query(Q.where('business_id', bId)).fetch();
+    return bestNameMatch(all, spoken);
+}
+
+export async function matchProductByName(spoken) {
+    return bestNameMatch(await getAllProducts(), spoken);
+}

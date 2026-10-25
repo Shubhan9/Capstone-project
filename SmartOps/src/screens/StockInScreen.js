@@ -44,6 +44,8 @@ export default function StockInScreen({ navigation, route }) {
         (async () => {
             const found = await getProductById(pid);
             if (found) setProduct(found);
+            // Voice entry passes the spoken quantity along.
+            if (route?.params?.quantity) set('quantity', String(route.params.quantity));
         })();
     }, [route?.params?.productId]);
 

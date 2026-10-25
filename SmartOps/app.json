@@ -2,7 +2,7 @@
   "expo": {
     "name": "SmartOps",
     "slug": "SmartOps",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "web": {
       "favicon": "./assets/favicon.png"
     },
@@ -11,7 +11,12 @@
     },
     "plugins": [
       "expo-sqlite",
-      "expo-audio"
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "SmartOps uses the microphone for voice entry of sales and khata."
+        }
+      ]
     ],
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -33,7 +38,8 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.smartops.app",
-      "usesCleartextTraffic": true
+      "usesCleartextTraffic": true,
+      "versionCode": 2
     }
   }
 }

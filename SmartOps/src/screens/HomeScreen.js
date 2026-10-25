@@ -55,6 +55,14 @@ export default function HomeScreen({ navigation, name }) {
                         <Text style={s.shopName}>{name}</Text>
                     </View>
                     <TouchableOpacity
+                        style={[s.profileBtn, { marginRight: 10 }]}
+                        activeOpacity={0.7}
+                        onPress={() => navigation.navigate('VoiceEntry')}
+                        accessibilityLabel="Voice entry"
+                    >
+                        <AppIcon name="mic" size="chip" color={colors.teal} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
                         style={s.profileBtn}
                         activeOpacity={0.7}
                         onPress={() => navigation.navigate('Profile')}

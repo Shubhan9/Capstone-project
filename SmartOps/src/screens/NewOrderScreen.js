@@ -3,7 +3,7 @@ import {
     View, Text, ScrollView, TouchableOpacity,
     TextInput, StyleSheet, Alert, Modal, KeyboardAvoidingView, Platform, Keyboard,
 } from 'react-native';
-import { getProductByBarcode, recordSale, searchCustomers, createCustomer, updateCustomerDetails, getCustomerBalance } from '../database/actions';
+import { getProductByBarcode, recordSale, searchCustomers, createCustomer, updateCustomerDetails, getCustomerBalance, pickSaleBatch, getProductsByIds, getCustomersByIds } from '../database/actions';
 import { useAppBadges } from '../hooks/useAppBadges';
 import { shareBillPdf, sendBillOnWhatsApp } from '../services/share';
 import BarcodeScanner from '../../components/BarcodeScanner';
@@ -11,7 +11,7 @@ import { Card, PrimaryButton, GhostButton, Divider, EmptyState } from '../../com
 import { AppIcon } from '../theme/icons';
 import { colors, spacing, radius, font } from '../theme';
 
-export default function NewOrderScreen({ navigation }) {
+export default function NewOrderScreen({ navigation, route }) {
     const [scanning, setScanning] = useState(false);
     const [cart, setCart] = useState([]);           // [{ product, quantity, unitPrice, batchId }]
     const [customerQuery, setCustomerQuery] = useState('');       // name search text
@@ -48,6 +48,36 @@ export default function NewOrderScreen({ navigation }) {
         })();
         return () => { active = false; };
     }, [selectedCustomer]);
+
+    // Cart pre-filled by voice entry: route.params.prefill =
+    //   { lines: [{ productId, quantity }], customerId?, paymentMode? }
+    // Everything still goes through this screen's normal review + checkout.
+    const prefill = route?.params?.prefill;
+    useEffect(() => {
+        if (!prefill) return;
+        (async () => {
+            const productMap = await getProductsByIds(prefill.lines.map(l => l.productId));
+            const rows = [];
+            for (const line of prefill.lines) {
+                const product = productMap.get(line.productId);
+                if (!product) continue;
+                const batch = await pickSaleBatch(product);
+                rows.push({
+                    product,
+                    quantity: Math.max(1, Math.round(line.quantity)),
+                    unitPrice: product.sellingPrice || 0,
+                    batchId: batch?.id ?? null,
+                });
+            }
+            setCart(rows);
+            if (prefill.customerId) {
+                const c = (await getCustomersByIds([prefill.customerId])).get(prefill.customerId);
+                if (c) selectCustomer(c);
+            }
+            if (prefill.paymentMode) setPaymentMode(prefill.paymentMode);
+        })();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [prefill]);
 
     function selectCustomer(customer) {
         setSelectedCustomer(customer);
@@ -87,12 +117,8 @@ export default function NewOrderScreen({ navigation }) {
             return;
         }
 
-        // Get earliest-expiry batch for FEFO; batches with no expiry (loose
-        // goods) sort last so dated stock is always sold first.
-        const batches = await product.stockBatches.fetch();
-        const validBatch = batches
-            .filter(b => !b.isExpired)
-            .sort((a, b) => (a.expiryDate || Infinity) - (b.expiryDate || Infinity))[0];
+        // Earliest-expiry batch (FEFO); no-expiry loose goods sell last.
+        const validBatch = await pickSaleBatch(product);
 
         // If already in cart, just increment with same price
         const existingRow = cart.find(i => i.product.id === product.id);
