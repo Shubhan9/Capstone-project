@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { getProductByBarcode, recordSale, searchCustomers, createCustomer, updateCustomerDetails, getCustomerBalance } from '../database/actions';
 import { useAppBadges } from '../hooks/useAppBadges';
+import { shareBillPdf, sendBillOnWhatsApp } from '../services/share';
 import BarcodeScanner from '../../components/BarcodeScanner';
 import { Card, PrimaryButton, GhostButton, Divider, EmptyState } from '../../components/UI';
 import { AppIcon } from '../theme/icons';
@@ -198,7 +199,7 @@ export default function NewOrderScreen({ navigation }) {
             }
 
             // recordSale uses database.write() — atomic, conflict-safe for multi-user
-            await recordSale({
+            const order = await recordSale({
                 customerId,
                 paymentMode,
                 items: cart.map(i => ({
@@ -210,10 +211,18 @@ export default function NewOrderScreen({ navigation }) {
             });
             refreshBadges();
 
+            const finish = () => { setCart([]); clearCustomer(); navigation.goBack(); };
+            const hasPhone = !!(selectedCustomer?.phone || (paymentMode === 'credit' && phoneForCredit));
             Alert.alert(
                 'Order complete',
                 `₹${cartTotal.toFixed(2)} · ${paymentMode.toUpperCase()}`,
-                [{ text: 'Done', onPress: () => { setCart([]); clearCustomer(); navigation.goBack(); } }]
+                [
+                    hasPhone
+                        ? { text: 'WhatsApp bill', onPress: async () => { await sendBillOnWhatsApp(order.id); finish(); } }
+                        : null,
+                    { text: 'Share PDF bill', onPress: async () => { await shareBillPdf(order.id); finish(); } },
+                    { text: 'Done', onPress: finish },
+                ].filter(Boolean)
             );
         } catch (e) {
             Alert.alert('Error', 'Could not save order. Please try again.');

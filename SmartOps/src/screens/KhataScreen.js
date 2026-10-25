@@ -12,6 +12,7 @@ import { PrimaryButton, GhostButton, EmptyState } from '../../components/UI';
 import { useAppBadges } from '../hooks/useAppBadges';
 import { AppIcon } from '../theme/icons';
 import { colors, spacing, radius, font } from '../theme';
+import { sendKhataReminder } from '../services/share';
 
 export default function KhataScreen({ navigation }) {
     const [rows, setRows] = useState([]);           // [{ customer, balance }]
@@ -169,6 +170,17 @@ export default function KhataScreen({ navigation }) {
                             <Text style={s.modalBalanceValue}>₹{selected?.balance?.toFixed(2)}</Text>
                         </View>
 
+                        <TouchableOpacity
+                            style={s.remindBtn}
+                            activeOpacity={0.8}
+                            onPress={() => selected && sendKhataReminder({
+                                customer: selected.customer, balance: selected.balance, entries: ledger,
+                            })}
+                        >
+                            <AppIcon name="whatsapp" size="chip" color={colors.teal} />
+                            <Text style={s.remindBtnText}>Send reminder on WhatsApp</Text>
+                        </TouchableOpacity>
+
                         {/* Repayment input */}
                         <Text style={s.inputLabel}>RECORD A REPAYMENT</Text>
                         <View style={s.payRow}>
@@ -272,6 +284,12 @@ const s = StyleSheet.create({
     avatarText: { color: colors.textPrimary, fontSize: font.md, fontWeight: '700' },
     customerName: { color: colors.textPrimary, fontSize: font.md, fontWeight: '600', marginBottom: 2 },
     customerPhone: { color: colors.textMuted, fontSize: font.xs },
+    remindBtn: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm,
+        borderWidth: 1, borderColor: colors.teal + '55', backgroundColor: colors.tealFaint,
+        borderRadius: radius.md, paddingVertical: 12, marginBottom: spacing.lg,
+    },
+    remindBtnText: { color: colors.teal, fontSize: font.md, fontWeight: '700' },
     balanceWrap: { alignItems: 'flex-end' },
     balanceValue: { color: colors.amber, fontSize: font.lg, fontWeight: '700' },
     balanceLabel: { color: colors.textMuted, fontSize: font.xs },
