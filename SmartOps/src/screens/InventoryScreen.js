@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { getAllProducts, getStockLevels, updateProduct } from '../database/actions';
+import { useSession } from '../services/session';
 import { Badge, EmptyState, PrimaryButton, GhostButton } from '../../components/UI';
 import { useAppBadges } from '../hooks/useAppBadges';
 import { AppIcon } from '../theme/icons';
@@ -18,6 +19,8 @@ export default function InventoryScreen({ navigation }) {
     const [filter, setFilter] = useState('all'); // 'all' | 'low' | 'out'
     const [refreshing, setRefreshing] = useState(false);
     const [editing, setEditing] = useState(null);   // product being edited
+    // Staff can't change the product's price (the server ignores it too).
+    const staffMode = useSession().role === 'staff';
     const [editForm, setEditForm] = useState({ sellingPrice: '', reorderLevel: '' });
     const [saving, setSaving] = useState(false);
     const { refresh: refreshBadges, markLowStockSeen } = useAppBadges();
@@ -219,9 +222,10 @@ export default function InventoryScreen({ navigation }) {
                             </TouchableOpacity>
                         </View>
 
-                        <Text style={s.inputLabel}>SELLING PRICE (₹)</Text>
+                        <Text style={s.inputLabel}>SELLING PRICE (₹){staffMode ? '  · owner only' : ''}</Text>
                         <TextInput
-                            style={s.modalInput}
+                            editable={!staffMode}
+                            style={[s.modalInput, staffMode && { opacity: 0.5 }]}
                             keyboardType="decimal-pad"
                             value={editForm.sellingPrice}
                             onChangeText={v => setEditForm(f => ({ ...f, sellingPrice: v }))}

@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 import { syncWithServer } from '../sync/syncEngine';
 import { AppIcon } from '../theme/icons';
 import { colors, spacing, radius, font } from '../theme';
+import { useSession } from '../services/session';
 
 export default function ProfileScreen({ navigation, name, onLogout }) {
     const [online, setOnline] = useState(true);
     const [syncing, setSyncing] = useState(false);
+    const { role, staff } = useSession();
+    const owner = role !== 'staff';
 
     useEffect(() => {
         const unsubscribe = NetInfo.addEventListener(state => {
@@ -33,7 +36,7 @@ export default function ProfileScreen({ navigation, name, onLogout }) {
     }
 
     return (
-        <View style={s.root}>
+        <ScrollView style={s.root} contentContainerStyle={{ padding: spacing.lg, paddingBottom: 60 }}>
             <View style={s.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()}>
                     <Text style={s.back}>‹ Back</Text>
@@ -51,7 +54,28 @@ export default function ProfileScreen({ navigation, name, onLogout }) {
                     <View style={[s.statusDot, { backgroundColor: online ? colors.teal : colors.textMuted }]} />
                     <Text style={s.statusText}>{online ? 'Online' : 'Offline · saved on device'}</Text>
                 </View>
+                {!owner && <Text style={s.staffTag}>Signed in as staff · {staff?.name}</Text>}
             </View>
+
+            {owner && (
+                <TouchableOpacity style={s.row} onPress={() => navigation.navigate('ShopSettings')} activeOpacity={0.7}>
+                    <AppIcon name="shop" size="chip" />
+                    <Text style={s.rowLabel}>Shop details & UPI</Text>
+                    <AppIcon name="chevron" />
+                </TouchableOpacity>
+            )}
+            <TouchableOpacity style={s.row} onPress={() => navigation.navigate('Suppliers')} activeOpacity={0.7}>
+                <AppIcon name="suppliers" size="chip" />
+                <Text style={s.rowLabel}>Suppliers & purchase orders</Text>
+                <AppIcon name="chevron" />
+            </TouchableOpacity>
+            {owner && (
+                <TouchableOpacity style={s.row} onPress={() => navigation.navigate('Staff')} activeOpacity={0.7}>
+                    <AppIcon name="staff" size="chip" />
+                    <Text style={s.rowLabel}>Staff accounts</Text>
+                    <AppIcon name="chevron" />
+                </TouchableOpacity>
+            )}
 
             <TouchableOpacity style={s.row} onPress={handleSyncNow} disabled={syncing} activeOpacity={0.7}>
                 <AppIcon name="sync" size="chip" />
@@ -63,12 +87,12 @@ export default function ProfileScreen({ navigation, name, onLogout }) {
                 <AppIcon name="logout" size="chip" color={colors.red} />
                 <Text style={[s.rowLabel, { color: colors.red }]}>Log out</Text>
             </TouchableOpacity>
-        </View>
+        </ScrollView>
     );
 }
 
 const s = StyleSheet.create({
-    root: { flex: 1, backgroundColor: colors.bg, padding: spacing.lg },
+    root: { flex: 1, backgroundColor: colors.bg },
     header: {
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
         paddingTop: spacing.xl, marginBottom: spacing.xl,
@@ -94,6 +118,7 @@ const s = StyleSheet.create({
     statusRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: spacing.sm },
     statusDot: { width: 7, height: 7, borderRadius: 4 },
     statusText: { color: colors.textMuted, fontSize: font.sm, fontWeight: '600' },
+    staffTag: { color: colors.amber, fontSize: font.sm, fontWeight: '700', marginTop: spacing.sm },
 
     row: {
         flexDirection: 'row', alignItems: 'center', gap: spacing.md,
