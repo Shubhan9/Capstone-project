@@ -1,7 +1,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export default appSchema({
-    version: 4,
+    version: 5,
     tables: [
 
         tableSchema({
@@ -26,9 +26,12 @@ export default appSchema({
             columns: [
                 { name: 'product_id', type: 'string', isIndexed: true },
                 { name: 'quantity', type: 'number' },
-                { name: 'batch_no', type: 'string' },
-                { name: 'expiry_date', type: 'number' },
+                // Optional since v5: loose goods (rice, sugar) have neither.
+                // Pharmacies still must fill both — enforced in the Stock In screen.
+                { name: 'batch_no', type: 'string', isOptional: true },
+                { name: 'expiry_date', type: 'number', isOptional: true },
                 { name: 'cost_price', type: 'number' },
+                { name: 'supplier_id', type: 'string', isOptional: true },
                 { name: 'sync_status', type: 'string' },
                 { name: 'created_at', type: 'number' },
                 { name: 'updated_at', type: 'number' },
@@ -101,6 +104,32 @@ export default appSchema({
                 { name: 'amount', type: 'number' },
                 { name: 'note', type: 'string', isOptional: true },
                 { name: 'entry_at', type: 'number' },
+                { name: 'sync_status', type: 'string' },
+                { name: 'updated_at', type: 'number' },
+            ],
+        }),
+
+        tableSchema({
+            name: 'suppliers',
+            columns: [
+                { name: 'business_id', type: 'string', isIndexed: true },
+                { name: 'name', type: 'string' },
+                { name: 'phone', type: 'string', isOptional: true },
+                { name: 'note', type: 'string', isOptional: true },
+                { name: 'sync_status', type: 'string' },
+                { name: 'updated_at', type: 'number' },
+            ],
+        }),
+
+        tableSchema({
+            name: 'purchase_orders',
+            columns: [
+                { name: 'business_id', type: 'string', isIndexed: true },
+                { name: 'supplier_id', type: 'string', isOptional: true, isIndexed: true },
+                { name: 'status', type: 'string' },          // draft | sent | received | cancelled
+                { name: 'items_json', type: 'string' },      // [{ product_id, name, quantity }]
+                { name: 'note', type: 'string', isOptional: true },
+                { name: 'ordered_at', type: 'number' },
                 { name: 'sync_status', type: 'string' },
                 { name: 'updated_at', type: 'number' },
             ],

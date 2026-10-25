@@ -19,7 +19,10 @@ const loginValidation = [
 const register = asyncHandler(async (req, res) => {
     const { name, phone, password, type = 'kirana' } = req.body;
 
-    const exists = await query('SELECT id FROM businesses WHERE phone = $1', [phone]);
+    const exists = await query(
+        'SELECT id FROM businesses WHERE phone = $1 UNION SELECT id FROM staff WHERE phone = $1',
+        [phone]
+    );
     if (exists.rows.length > 0) {
         return res.status(409).json({ error: 'Phone number already registered' });
     }
@@ -35,19 +38,17 @@ const register = asyncHandler(async (req, res) => {
     const business = rows[0];
     const token = signToken(business.id);
 
-    res.status(201).json({ token, business });
+    res.status(201).json({ token, business, role: 'owner' });
 });
 
 const login = asyncHandler(async (req, res) => {
     const { phone, password } = req.body;
 
     const { rows } = await query(
-        'SELECT id, name, phone, type, password_hash FROM businesses WHERE phone = $1',
+        'SELECT id, name, phone, type, upi_id, address, gstin, password_hash FROM businesses WHERE phone = $1',
         [phone]
     );
-    if (rows.length === 0) {
-        return res.status(401).json({ error: 'Invalid phone or password' });
-    }
+    if (rows.length === 0) return staffLogin(req, res);
 
     const business = rows[0];
     const valid = await bcrypt.compare(password, business.password_hash);
@@ -58,11 +59,31 @@ const login = asyncHandler(async (req, res) => {
     const token = signToken(business.id);
     const { password_hash: _, ...safe } = business;
 
-    res.json({ token, business: safe });
+    res.json({ token, business: safe, role: 'owner' });
 });
 
-function signToken(businessId) {
-    return jwt.sign({ businessId }, process.env.JWT_SECRET, {
+// A phone that isn't an owner login may be a staff login. Staff get the
+// business they work for, plus role/staff so the app can restrict itself.
+async function staffLogin(req, res) {
+    const { phone, password } = req.body;
+    const { rows } = await query(
+        `SELECT s.id AS staff_id, s.name AS staff_name, s.password_hash,
+            b.id, b.name, b.phone, b.type, b.upi_id, b.address, b.gstin
+       FROM staff s JOIN businesses b ON b.id = s.business_id
+      WHERE s.phone = $1 AND s.active`,
+        [phone]
+    );
+    if (rows.length === 0 || !(await bcrypt.compare(password, rows[0].password_hash))) {
+        return res.status(401).json({ error: 'Invalid phone or password' });
+    }
+    const { staff_id, staff_name, password_hash: _, ...business } = rows[0];
+    const token = signToken(business.id, staff_id);
+    res.json({ token, business, role: 'staff', staff: { id: staff_id, name: staff_name } });
+}
+
+function signToken(businessId, staffId) {
+    const payload = staffId ? { businessId, staffId } : { businessId };
+    return jwt.sign(payload, process.env.JWT_SECRET, {
         expiresIn: process.env.JWT_EXPIRES_IN || '30d',
     });
 }

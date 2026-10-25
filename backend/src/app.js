@@ -40,7 +40,9 @@ app.use(rateLimit({
 app.use(compression());
 app.use(express.json({ limit: '2mb' }));   // sync payloads can be large
 app.use(express.urlencoded({ extended: true }));
-app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev', {
+    skip: () => process.env.NODE_ENV === 'test',
+}));
 
 // ── Trust proxy (Railway/Render sit behind reverse proxy) ─────────────────────
 app.set('trust proxy', 1);

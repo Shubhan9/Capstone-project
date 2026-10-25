@@ -11,6 +11,8 @@ import SaleOrder from '../models/SaleOrder';
 import SaleItem from '../models/SaleItem';
 import Customer from '../models/Customer';
 import LedgerEntry from '../models/LedgerEntry';
+import Supplier from '../models/Supplier';
+import PurchaseOrder from '../models/PurchaseOrder';
 
 function uuidv4() {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
@@ -55,8 +57,8 @@ const adapter = new LokiJSAdapter({
 
 const database = new Database({
     adapter,
-    modelClasses: [Product, StockBatch, StockTransaction, SaleOrder, SaleItem, Customer, LedgerEntry],
+    modelClasses: [Product, StockBatch, StockTransaction, SaleOrder, SaleItem, Customer, LedgerEntry, Supplier, PurchaseOrder],
 });
 
 export default database;
-export { Product, StockBatch, StockTransaction, SaleOrder, SaleItem, Customer, LedgerEntry };
+export { Product, StockBatch, StockTransaction, SaleOrder, SaleItem, Customer, LedgerEntry, Supplier, PurchaseOrder };

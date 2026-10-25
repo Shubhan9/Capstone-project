@@ -35,5 +35,5 @@ export default class Product extends Model {
     }
 
     @lazy nearestExpiry = this.stockBatches
-        .extend(Q.sortBy('expiry_date', Q.asc), Q.take(1));
+        .extend(Q.where('expiry_date', Q.gt(0)), Q.sortBy('expiry_date', Q.asc), Q.take(1));
 }

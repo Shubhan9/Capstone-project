@@ -10,6 +10,7 @@ import { getBusinessId } from '../sync/syncEngine';
 import { Badge, EmptyState } from '../../components/UI';
 import { AppIcon } from '../theme/icons';
 import { colors, spacing, radius, font } from '../theme';
+import { shareBillPdf, sendBillOnWhatsApp } from '../services/share';
 
 const DATE_FILTERS = ['today', 'week', 'month', 'all'];
 const PAYMENT_FILTERS = ['all', 'cash', 'upi', 'credit'];
@@ -318,6 +319,17 @@ export default function OrderHistoryScreen({ navigation }) {
                             <Text style={s.modalTotalLabel}>Total</Text>
                             <Text style={s.modalTotalValue}>₹{selected?.totalAmount.toFixed(2)}</Text>
                         </View>
+
+                        <View style={s.billRow}>
+                            <TouchableOpacity style={s.billBtn} onPress={() => selected && shareBillPdf(selected.id)}>
+                                <AppIcon name="share" size="chip" color={colors.teal} />
+                                <Text style={s.billBtnText}>Share PDF bill</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={s.billBtn} onPress={() => selected && sendBillOnWhatsApp(selected.id)}>
+                                <AppIcon name="whatsapp" size="chip" color={colors.teal} />
+                                <Text style={s.billBtnText}>WhatsApp</Text>
+                            </TouchableOpacity>
+                        </View>
                     </TouchableOpacity>
                 </TouchableOpacity>
             </Modal>
@@ -452,6 +464,12 @@ const s = StyleSheet.create({
     itemMeta: { color: colors.textMuted, fontSize: font.xs },
     itemTotal: { color: colors.teal, fontSize: font.md, fontWeight: '700' },
 
+    billRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
+    billBtn: {
+        flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+        borderWidth: 1, borderColor: colors.teal + '55', borderRadius: radius.md, paddingVertical: 12,
+    },
+    billBtnText: { color: colors.teal, fontSize: font.sm, fontWeight: '700' },
     modalTotal: {
         flexDirection: 'row', justifyContent: 'space-between',
         alignItems: 'center', paddingTop: spacing.lg,

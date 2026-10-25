@@ -1,6 +1,9 @@
 const { withTransaction, query } = require('../db/pool');
 const { asyncHandler } = require('../middleware/errors');
 
+const PULL_SAFETY_MS = 10000;
+const SCHEMA_SUPPLIERS = 5;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // PULL  GET /api/sync/pull?last_pulled_at=<unix_ms>
 //
@@ -10,7 +13,15 @@ const { asyncHandler } = require('../middleware/errors');
 const pull = asyncHandler(async (req, res) => {
     const businessId = req.business.id;
     const since = parseInt(req.query.last_pulled_at) || 0;
-    const now = Date.now();
+    // Clients that understand the newer tables say so; older installed APKs
+    // must never receive a table their local schema doesn't have (WatermelonDB
+    // would throw and that phone would stop syncing entirely).
+    const clientSchema = parseInt(req.query.schema_version) || 0;
+    // Hand back a cursor slightly in the past: a transaction that stamped its
+    // server_ts just before this moment but commits just after it would
+    // otherwise be skipped forever. Re-pulling a few seconds of rows is a
+    // harmless idempotent upsert on the phone.
+    const now = Date.now() - PULL_SAFETY_MS;
 
     const [products, batches, transactions, orders, items, customers, ledger] = await Promise.all([
 
@@ -21,7 +32,7 @@ const pull = asyncHandler(async (req, res) => {
           sync_status,
           updated_at::FLOAT     AS updated_at
          FROM products
-         WHERE business_id = $1 AND updated_at > $2`,
+         WHERE business_id = $1 AND server_ts > $2`,
             [businessId, since]
         ),
 
@@ -30,13 +41,14 @@ const pull = asyncHandler(async (req, res) => {
           sb.quantity,
           sb.batch_no,
           sb.expiry_date::FLOAT  AS expiry_date,
+          sb.supplier_id,
           sb.cost_price::FLOAT   AS cost_price,
           sb.sync_status,
           sb.created_at::FLOAT   AS created_at,
           sb.updated_at::FLOAT   AS updated_at
          FROM stock_batches sb
          JOIN products p ON p.id = sb.product_id
-         WHERE p.business_id = $1 AND sb.updated_at > $2`,
+         WHERE p.business_id = $1 AND sb.server_ts > $2`,
             [businessId, since]
         ),
 
@@ -48,7 +60,7 @@ const pull = asyncHandler(async (req, res) => {
           st.updated_at::FLOAT  AS updated_at
          FROM stock_transactions st
          JOIN products p ON p.id = st.product_id
-         WHERE p.business_id = $1 AND st.updated_at > $2`,
+         WHERE p.business_id = $1 AND st.server_ts > $2`,
             [businessId, since]
         ),
 
@@ -60,7 +72,7 @@ const pull = asyncHandler(async (req, res) => {
           sync_status,
           updated_at::FLOAT    AS updated_at
          FROM sale_orders
-         WHERE business_id = $1 AND updated_at > $2`,
+         WHERE business_id = $1 AND server_ts > $2`,
             [businessId, since]
         ),
 
@@ -71,7 +83,7 @@ const pull = asyncHandler(async (req, res) => {
           si.updated_at::FLOAT  AS updated_at
          FROM sale_items si
          JOIN sale_orders so ON so.id = si.order_id
-         WHERE so.business_id = $1 AND si.updated_at > $2`,
+         WHERE so.business_id = $1 AND si.server_ts > $2`,
             [businessId, since]
         ),
 
@@ -81,7 +93,7 @@ const pull = asyncHandler(async (req, res) => {
           sync_status,
           updated_at::FLOAT        AS updated_at
          FROM customers
-         WHERE business_id = $1 AND updated_at > $2`,
+         WHERE business_id = $1 AND server_ts > $2`,
             [businessId, since]
         ),
 
@@ -93,10 +105,33 @@ const pull = asyncHandler(async (req, res) => {
           sync_status,
           updated_at::FLOAT     AS updated_at
          FROM ledger_entries
-         WHERE business_id = $1 AND updated_at > $2`,
+         WHERE business_id = $1 AND server_ts > $2`,
             [businessId, since]
         ),
     ]);
+
+    let extra = {};
+    if (clientSchema >= SCHEMA_SUPPLIERS) {
+        const [suppliers, pos] = await Promise.all([
+            query(
+                `SELECT id, business_id, name, phone, note, sync_status,
+          updated_at::FLOAT AS updated_at
+         FROM suppliers WHERE business_id = $1 AND server_ts > $2`,
+                [businessId, since]
+            ),
+            query(
+                `SELECT id, business_id, supplier_id, status, items_json, note,
+          ordered_at::FLOAT AS ordered_at, sync_status,
+          updated_at::FLOAT AS updated_at
+         FROM purchase_orders WHERE business_id = $1 AND server_ts > $2`,
+                [businessId, since]
+            ),
+        ]);
+        extra = {
+            suppliers: { created: suppliers.rows, updated: [], deleted: [] },
+            purchase_orders: { created: pos.rows, updated: [], deleted: [] },
+        };
+    }
 
     res.json({
         timestamp: now,
@@ -108,6 +143,7 @@ const pull = asyncHandler(async (req, res) => {
             sale_items: { created: items.rows, updated: [], deleted: [] },
             customers: { created: customers.rows, updated: [], deleted: [] },
             ledger_entries: { created: ledger.rows, updated: [], deleted: [] },
+            ...extra,
         },
     });
 });
@@ -126,6 +162,7 @@ const push = asyncHandler(async (req, res) => {
     if (!changes) return res.status(422).json({ error: 'Missing changes payload' });
 
     const now = Date.now();
+    const isStaff = req.role === 'staff';
 
     // WatermelonDB splits local writes into created / updated / deleted buckets.
     // Every table below upserts (ON CONFLICT DO UPDATE) or safely no-ops
@@ -155,12 +192,13 @@ const push = asyncHandler(async (req, res) => {
            unit           = EXCLUDED.unit,
            reorder_level  = EXCLUDED.reorder_level,
            schedule_h     = EXCLUDED.schedule_h,
-           selling_price  = EXCLUDED.selling_price,
+           -- staff may add products but not reprice existing ones
+           selling_price  = CASE WHEN $12 THEN products.selling_price ELSE EXCLUDED.selling_price END,
            sync_status    = 'synced',
            updated_at     = EXCLUDED.updated_at`,
                 [p.id, businessId, p.name, p.category, p.barcode || null, p.brand || null,
                 p.unit, p.reorder_level ?? 5, p.schedule_h ?? false,
-                p.selling_price ?? 0, p.updated_at ?? now]
+                p.selling_price ?? 0, p.updated_at ?? now, isStaff]
             );
         }
 
@@ -168,14 +206,17 @@ const push = asyncHandler(async (req, res) => {
         for (const b of upserts(changes.stock_batches)) {
             await client.query(
                 `INSERT INTO stock_batches
-           (id, product_id, quantity, batch_no, expiry_date, cost_price, sync_status, updated_at, created_at)
-         VALUES ($1,$2,$3,$4,$5,$6,'synced',$7,$7)
+           (id, product_id, quantity, batch_no, expiry_date, cost_price, supplier_id, sync_status, updated_at, created_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$8,'synced',$7,$7)
          ON CONFLICT (id) DO UPDATE SET
            quantity     = EXCLUDED.quantity,
+           supplier_id  = EXCLUDED.supplier_id,
            sync_status  = 'synced',
            updated_at   = EXCLUDED.updated_at`,
-                [b.id, b.product_id, b.quantity, b.batch_no,
-                b.expiry_date, b.cost_price ?? 0, b.updated_at ?? now]
+                // batch_no/expiry are optional (loose goods) — store NULL, not ''/0
+                [b.id, b.product_id, b.quantity, b.batch_no || null,
+                b.expiry_date || null, b.cost_price ?? 0, b.updated_at ?? now,
+                b.supplier_id || null]
             );
         }
 
@@ -246,6 +287,35 @@ const push = asyncHandler(async (req, res) => {
          ON CONFLICT (id) DO NOTHING`,   // a ledger entry is never edited after it's written
                 [e.id, businessId, e.customer_id, e.order_id || null,
                 e.type, e.amount, e.note || null, e.entry_at, e.updated_at ?? now]
+            );
+        }
+
+        // ── Suppliers ─────────────────────────────────────────────────────────────
+        for (const sp of upserts(changes.suppliers)) {
+            await client.query(
+                `INSERT INTO suppliers (id, business_id, name, phone, note, sync_status, updated_at)
+         VALUES ($1,$2,$3,$4,$5,'synced',$6)
+         ON CONFLICT (id) DO UPDATE SET
+           name = EXCLUDED.name, phone = EXCLUDED.phone, note = EXCLUDED.note,
+           sync_status = 'synced', updated_at = EXCLUDED.updated_at
+         WHERE suppliers.business_id = $2`,
+                [sp.id, businessId, sp.name, sp.phone || null, sp.note || null, sp.updated_at ?? now]
+            );
+        }
+
+        // ── Purchase orders ───────────────────────────────────────────────────────
+        for (const po of upserts(changes.purchase_orders)) {
+            await client.query(
+                `INSERT INTO purchase_orders
+           (id, business_id, supplier_id, status, items_json, note, ordered_at, sync_status, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,'synced',$8)
+         ON CONFLICT (id) DO UPDATE SET
+           supplier_id = EXCLUDED.supplier_id, status = EXCLUDED.status,
+           items_json = EXCLUDED.items_json, note = EXCLUDED.note,
+           sync_status = 'synced', updated_at = EXCLUDED.updated_at
+         WHERE purchase_orders.business_id = $2`,
+                [po.id, businessId, po.supplier_id || null, po.status || 'draft',
+                po.items_json || '[]', po.note || null, po.ordered_at || now, po.updated_at ?? now]
             );
         }
 

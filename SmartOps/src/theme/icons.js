@@ -16,6 +16,7 @@ import {
     WarningCircle, TrendUp, ShoppingCart, Archive,
     Barcode, CheckCircle, WifiSlash, Flashlight, Keyboard,
     X, CaretRight, MapPin, Eye, EyeSlash,
+    ShareNetwork, WhatsappLogo, Microphone, Truck, IdentificationBadge, Storefront,
 } from 'phosphor-react-native';
 import { colors } from './index';
 
@@ -46,6 +47,12 @@ const ICONS = {
     location: MapPin,
     show: Eye,
     hide: EyeSlash,
+    share: ShareNetwork,
+    whatsapp: WhatsappLogo,
+    mic: Microphone,
+    suppliers: Truck,
+    staff: IdentificationBadge,
+    shop: Storefront,
 };
 
 // Three sizes only: inline text/list rows, the bottom tab bar, and action chips

@@ -15,6 +15,7 @@ export default class StockBatch extends Model {
     @field('batch_no') batchNo;
     @field('expiry_date') expiryDate;   // unix ms — plain @field, NOT @date
     @field('cost_price') costPrice;
+    @field('supplier_id') supplierId;
     @field('sync_status') syncStatus;
     @field('created_at') createdAt;   // plain @field, NOT @date
     @field('updated_at') updatedAt;
@@ -31,10 +32,14 @@ export default class StockBatch extends Model {
     }
 
     // expiry_date is raw unix ms — math works correctly now
+    get hasExpiry() { return !!this.expiryDate; }
+
+    // null for loose goods with no expiry — they never count as near-expiry/expired
     get daysUntilExpiry() {
+        if (!this.hasExpiry) return null;
         return Math.floor((this.expiryDate - Date.now()) / (1000 * 60 * 60 * 24));
     }
 
-    get isNearExpiry() { return this.daysUntilExpiry <= 30 && this.daysUntilExpiry >= 0; }
-    get isExpired() { return this.daysUntilExpiry < 0; }
+    get isNearExpiry() { return this.hasExpiry && this.daysUntilExpiry <= 30 && this.daysUntilExpiry >= 0; }
+    get isExpired() { return this.hasExpiry && this.daysUntilExpiry < 0; }
 }

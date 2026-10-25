@@ -7,6 +7,7 @@ import {
 import { AuthAPI } from '../services/api';
 import { startAutoSync, setAuthToken, setBusinessId } from '../sync/syncEngine';
 import { colors, spacing, radius, font } from '../theme';
+import { saveSession } from '../services/session';
 
 export default function LoginScreen({ onLogin }) {
     const [mode, setMode] = useState('login');   // 'login' | 'register'
@@ -33,6 +34,7 @@ export default function LoginScreen({ onLogin }) {
             }
             await setAuthToken(res.token);
             await setBusinessId(res.business.id);
+            await saveSession({ business: res.business, role: res.role || 'owner', staff: res.staff || null });
             startAutoSync();
             onLogin(res.token, res.business);
         } catch (err) {

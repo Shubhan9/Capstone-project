@@ -2,8 +2,14 @@ import { synchronize } from '@nozbe/watermelondb/sync';
 import NetInfo from '@react-native-community/netinfo';
 import database from '../database';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { clearSession } from '../services/session';
 
 export const API_BASE = 'https://smartops-app.duckdns.org/api';
+
+// Sent on every pull so the server only includes tables this build knows about
+// (older installed APKs omit it and keep getting the original 7 tables).
+// Keep in step with the version in src/database/schema.js.
+const SCHEMA_VERSION = 5;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Auth state — in-memory, set on login, cleared on logout
@@ -59,7 +65,7 @@ function toTimestampMs(value, fallback = 0) {
     return parsed < 1000000000000 ? parsed * 1000 : parsed;
 }
 
-function normalizeTableChanges(tableChanges, { numberFields = [], timestampFields = [] } = {}) {
+function normalizeTableChanges(tableChanges, { numberFields = [], timestampFields = [], nullableFields = [] } = {}) {
     if (!tableChanges) return { created: [], updated: [], deleted: [] };
 
     const normalizeRow = row => {
@@ -72,6 +78,7 @@ function normalizeTableChanges(tableChanges, { numberFields = [], timestampField
         });
 
         timestampFields.forEach(field => {
+            if (nullableFields.includes(field) && normalized[field] == null) return;
             if (Object.prototype.hasOwnProperty.call(normalized, field)) {
                 normalized[field] = toTimestampMs(normalized[field]);
             }
@@ -97,6 +104,7 @@ function normalizePullChanges(changes) {
         stock_batches: normalizeTableChanges(changes.stock_batches, {
             numberFields: ['quantity', 'cost_price'],
             timestampFields: ['expiry_date', 'created_at', 'updated_at'],
+            nullableFields: ['expiry_date'],   // loose goods have no expiry
         }),
         stock_transactions: normalizeTableChanges(changes.stock_transactions, {
             numberFields: ['quantity'],
@@ -116,6 +124,12 @@ function normalizePullChanges(changes) {
         ledger_entries: normalizeTableChanges(changes.ledger_entries, {
             numberFields: ['amount'],
             timestampFields: ['entry_at', 'updated_at'],
+        }),
+        suppliers: normalizeTableChanges(changes.suppliers, {
+            timestampFields: ['updated_at'],
+        }),
+        purchase_orders: normalizeTableChanges(changes.purchase_orders, {
+            timestampFields: ['ordered_at', 'updated_at'],
         }),
     };
 }
@@ -143,7 +157,7 @@ export async function syncWithServer() {
 
             pullChanges: async ({ lastPulledAt }) => {
                 const res = await fetch(
-                    `${API_BASE}/sync/pull?last_pulled_at=${lastPulledAt ?? 0}`,
+                    `${API_BASE}/sync/pull?last_pulled_at=${lastPulledAt ?? 0}&schema_version=${SCHEMA_VERSION}`,
                     { headers: authHeaders() }
                 );
                 if (!res.ok) {
@@ -235,6 +249,7 @@ export async function logoutAndSync() {
     if (_unsubscribe) { _unsubscribe(); _unsubscribe = null; }
     await setAuthToken(null);
     await setBusinessId(null);
+    await clearSession();
 
     console.log('[sync] Logged out cleanly.');
 }

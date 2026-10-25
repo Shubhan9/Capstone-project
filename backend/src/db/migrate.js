@@ -153,6 +153,99 @@ const migrations = [
     `ALTER TABLE customers ALTER COLUMN phone DROP NOT NULL`,
     `ALTER TABLE customers ADD COLUMN IF NOT EXISTS address TEXT`,
 
+    // ── 011: server-side sync cursor ──────────────────────────────────────────────
+    // Pull used to filter on updated_at, which the PHONE writes. A phone with a
+    // wrong clock (or a row written offline and pushed hours later) could land
+    // behind another device's last_pulled_at and never be pulled. server_ts is
+    // stamped by Postgres on every insert/update, so the cursor only ever
+    // compares server time with server time. Additive: existing rows are
+    // backfilled from updated_at, and the API response shape is unchanged, so
+    // already-installed APKs keep working.
+    `CREATE OR REPLACE FUNCTION set_server_ts() RETURNS trigger AS $$
+BEGIN
+  NEW.server_ts := (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::BIGINT;
+  RETURN NEW;
+END $$ LANGUAGE plpgsql`,
+    ...['products', 'stock_batches', 'stock_transactions', 'customers',
+        'sale_orders', 'sale_items', 'ledger_entries'].flatMap(t => [
+        `ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS server_ts BIGINT`,
+        `UPDATE ${t} SET server_ts = updated_at WHERE server_ts IS NULL`,
+        `CREATE INDEX IF NOT EXISTS idx_${t}_server_ts ON ${t}(server_ts)`,
+        `DROP TRIGGER IF EXISTS trg_${t}_server_ts ON ${t}`,
+        `CREATE TRIGGER trg_${t}_server_ts BEFORE INSERT OR UPDATE ON ${t}
+           FOR EACH ROW EXECUTE FUNCTION set_server_ts()`,
+    ]),
+
+    // ── 012: batch number + expiry optional ───────────────────────────────────────
+    // Loose kirana goods (rice, sugar, dal) have neither. Required-ness is now a
+    // per-shop-type rule enforced in the app (pharmacy still requires both).
+    `ALTER TABLE stock_batches ALTER COLUMN batch_no DROP NOT NULL`,
+    `ALTER TABLE stock_batches ALTER COLUMN expiry_date DROP NOT NULL`,
+
+    // ── 013: shop profile for bills + UPI payment links ───────────────────────────
+    `ALTER TABLE businesses ADD COLUMN IF NOT EXISTS upi_id  TEXT`,
+    `ALTER TABLE businesses ADD COLUMN IF NOT EXISTS address TEXT`,
+    `ALTER TABLE businesses ADD COLUMN IF NOT EXISTS gstin   TEXT`,
+
+    // ── 014: suppliers + purchase orders ──────────────────────────────────────────
+    `CREATE TABLE IF NOT EXISTS suppliers (
+  id           UUID        PRIMARY KEY,
+  business_id  UUID        NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  name         TEXT        NOT NULL,
+  phone        TEXT,
+  note         TEXT,
+  sync_status  TEXT        NOT NULL DEFAULT 'synced',
+  updated_at   BIGINT      NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW()) * 1000,
+  server_ts    BIGINT
+)`,
+    `CREATE INDEX IF NOT EXISTS idx_suppliers_business  ON suppliers(business_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_suppliers_server_ts ON suppliers(server_ts)`,
+    `ALTER TABLE stock_batches ADD COLUMN IF NOT EXISTS supplier_id UUID REFERENCES suppliers(id) ON DELETE SET NULL`,
+    // A purchase order is a small draft list sent to a supplier over WhatsApp;
+    // its lines are stored as JSON text ([{product_id,name,quantity}]) because
+    // they're never queried line-by-line and it keeps sync to one table.
+    `CREATE TABLE IF NOT EXISTS purchase_orders (
+  id           UUID        PRIMARY KEY,
+  business_id  UUID        NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  supplier_id  UUID        REFERENCES suppliers(id) ON DELETE SET NULL,
+  status       TEXT        NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','sent','received','cancelled')),
+  items_json   TEXT        NOT NULL DEFAULT '[]',
+  note         TEXT,
+  ordered_at   BIGINT      NOT NULL,
+  sync_status  TEXT        NOT NULL DEFAULT 'synced',
+  updated_at   BIGINT      NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW()) * 1000,
+  server_ts    BIGINT
+)`,
+    `CREATE INDEX IF NOT EXISTS idx_po_business  ON purchase_orders(business_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_po_server_ts ON purchase_orders(server_ts)`,
+    ...['suppliers', 'purchase_orders'].flatMap(t => [
+        `DROP TRIGGER IF EXISTS trg_${t}_server_ts ON ${t}`,
+        `CREATE TRIGGER trg_${t}_server_ts BEFORE INSERT OR UPDATE ON ${t}
+           FOR EACH ROW EXECUTE FUNCTION set_server_ts()`,
+    ]),
+
+    // ── 015: staff accounts ───────────────────────────────────────────────────────
+    // The business row stays the owner login (existing accounts are untouched).
+    // Staff are extra logins under a business with restricted permissions.
+    `CREATE TABLE IF NOT EXISTS staff (
+  id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  business_id    UUID        NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  name           TEXT        NOT NULL,
+  phone          TEXT        UNIQUE NOT NULL,
+  password_hash  TEXT        NOT NULL,
+  active         BOOLEAN     NOT NULL DEFAULT TRUE,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+)`,
+    `CREATE INDEX IF NOT EXISTS idx_staff_business ON staff(business_id)`,
+
+    // ── 016: voice usage (per-shop daily quota for the Gemini endpoint) ───────────
+    `CREATE TABLE IF NOT EXISTS voice_usage (
+  business_id  UUID    NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  day          DATE    NOT NULL,
+  count        INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (business_id, day)
+)`,
+
 ];
 
 async function migrate() {

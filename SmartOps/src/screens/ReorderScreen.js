@@ -121,12 +121,35 @@ export default function ReorderScreen({ navigation }) {
                         );
                     })
                 )}
+
+                {state.items.length > 0 && (
+                    <TouchableOpacity
+                        style={s.poBtn}
+                        activeOpacity={0.85}
+                        onPress={() => navigation.navigate('PurchaseOrder', {
+                            items: state.items
+                                .filter(i => i.urgency !== 'safe' && i.suggested_reorder_qty > 0)
+                                .map(i => ({
+                                    product_id: i.product_id, name: i.name, unit: i.unit,
+                                    quantity: Math.ceil(i.suggested_reorder_qty),
+                                })),
+                        })}
+                    >
+                        <AppIcon name="suppliers" size="chip" color={colors.bg} />
+                        <Text style={s.poBtnText}>Order these from a supplier</Text>
+                    </TouchableOpacity>
+                )}
             </ScrollView>
         </View>
     );
 }
 
 const s = StyleSheet.create({
+    poBtn: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm,
+        backgroundColor: colors.teal, borderRadius: radius.md, paddingVertical: 14, marginTop: spacing.md,
+    },
+    poBtnText: { color: colors.bg, fontSize: font.md, fontWeight: '800' },
     root: { flex: 1, backgroundColor: colors.bg },
     scroll: { padding: spacing.lg, paddingBottom: 100 },
 

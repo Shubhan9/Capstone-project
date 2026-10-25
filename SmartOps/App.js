@@ -26,6 +26,11 @@ import DaySummaryScreen from './src/screens/DaySummaryScreen';
 import ReorderScreen from './src/screens/ReorderScreen';
 import CustomerDirectoryScreen from './src/screens/CustomerDirectoryScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
+import ShopSettingsScreen from './src/screens/ShopSettingsScreen';
+import StaffScreen from './src/screens/StaffScreen';
+import SuppliersScreen from './src/screens/SuppliersScreen';
+import PurchaseOrderScreen from './src/screens/PurchaseOrderScreen';
+import VoiceEntryScreen from './src/screens/VoiceEntryScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -154,6 +159,11 @@ export default function App() {
                         <Stack.Screen name="Reorder" component={ReorderScreen} />
                         <Stack.Screen name="Customers" component={CustomerDirectoryScreen} />
                         <Stack.Screen name="DaySummary" component={DaySummaryScreen} />
+                        <Stack.Screen name="ShopSettings" component={ShopSettingsScreen} />
+                        <Stack.Screen name="Staff" component={StaffScreen} />
+                        <Stack.Screen name="Suppliers" component={SuppliersScreen} />
+                        <Stack.Screen name="PurchaseOrder" component={PurchaseOrderScreen} />
+                        <Stack.Screen name="VoiceEntry" component={VoiceEntryScreen} />
                         <Stack.Screen name="Profile">
                             {props => <ProfileScreen {...props} onLogout={handleLogout} name={name} />}
                         </Stack.Screen>
